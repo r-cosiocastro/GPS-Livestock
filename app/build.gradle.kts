@@ -1,7 +1,21 @@
+import java.util.Properties
+import java.io.FileInputStream
+
+fun getLocalProperty(propertyName: String): String? {
+    val properties = Properties()
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        properties.load(FileInputStream(localPropertiesFile))
+        return properties.getProperty(propertyName)
+    }
+    return null
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.google.android.libraries.mapsplatform.secrets.gradle.plugin)
+    id("kotlin-parcelize")
 }
 
 android {
@@ -16,6 +30,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        val mapsApiKey = getLocalProperty("MAPS_API_KEY")
+            ?: throw GradleException("MAPS_API_KEY no se encuentra en local.properties")
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {
