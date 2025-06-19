@@ -2,6 +2,10 @@
 agp = "8.10.1"
 kotlin = "2.0.21"
 coreKtx = "1.16.0"
+room = "2.7.1"
+ksp = "com.google.devtools.ksp:2.0.21-1.0.28"
+lottie = "6.6.6"
+gson = "2.11.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
@@ -11,6 +15,7 @@ activity = "1.10.1"
 constraintlayout = "2.2.1"
 playservices-maps = "19.2.0"
 playservices-location = "21.3.0"
+maps-utils = "3.8.0"
 googleAndroidLibrariesMapsplatformSecretsGradlePlugin = "2.0.1"
 
 [libraries]
@@ -24,6 +29,15 @@ androidx-activity = { group = "androidx.activity", name = "activity", version.re
 androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
 google-maps = { module = "com.google.android.gms:play-services-maps", version.ref = "playservices-maps" }
 google-location = { module = "com.google.android.gms:play-services-location", version.ref = "playservices-location" }
+maps-utils = { group = "com.google.maps.android", name = "android-maps-utils", version.ref = "maps-utils" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-ksp = { module = "androidx.room:room-compiler", version.ref = "room" }
+lifecycle-viewmodel-ktx = "androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.1"
+fragment-ktx = "androidx.fragment:fragment-ktx:1.8.8"
+lottie = { group = "com.airbnb.android", name = "lottie", version.ref = "lottie" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

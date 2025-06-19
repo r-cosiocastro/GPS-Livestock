@@ -1,4 +1,10 @@
 <resources>
     <string name="app_name">Pecus Track</string>
     <string name="title_activity_maps">MapsActivity</string>
+    <string name="distancia">Distancia: %1$s</string>
+    <string name="ultima_conexion">: %1$s</string>
+    <string name="dispositivos_total">Número total de dispositivos: %1$d</string>
+    <string name="dispositivos_activos">Dispositivos activos: %1$d</string>
+    <string name="dispositivos_fuera_rango">Dispositivos fuera del área de pastoreo: %1$d</string>
+    <string name="estado_del_dispositivo">Estado: %1$s</string>
 </resources>

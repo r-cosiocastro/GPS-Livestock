@@ -1,13 +1,20 @@
 package com.dasc.pecustrack.data.model
 
 import android.os.Parcelable
-import kotlinx.android.parcel.Parcelize
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+import kotlinx.parcelize.Parcelize
 
 @Parcelize
+@Entity(tableName = "dispositivos")
 data class Dispositivo(
-    val id: Int = 0,
+    @PrimaryKey val id: Int = 0,
     val nombre: String? = null,
     val descripcion: String? = null,
     val latitud: Double,
-    val longitud: Double
+    val longitud: Double,
+    val primeraConexion: Long? = null,
+    val ultimaConexion: Long? = null,
+    val activo: Boolean = true,
+    var dentroDelArea: Boolean = false
 ) : Parcelable

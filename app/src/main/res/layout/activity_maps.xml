@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root_container"
@@ -21,6 +21,7 @@
         android:layout_height="wrap_content"
         android:layout_margin="16dp"
         android:layout_gravity="top"
+        app:layout_constraintTop_toTopOf="parent"
         app:cardCornerRadius="16dp"
         app:cardElevation="8dp">
 
@@ -31,14 +32,13 @@
         android:orientation="horizontal"
         android:padding="12dp">
 
-        <ImageButton
+        <ImageView
             android:id="@+id/button_back"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="?android:selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_info_details"
-            android:clickable="false"
-            android:contentDescription="Regresar" />
+            android:src="@drawable/ic_info"
+            android:contentDescription="Regresar"
+            app:tint="@color/md_theme_primary" />
 
         <TextView
             android:id="@+id/top_text"
@@ -53,6 +53,72 @@
 
     </com.google.android.material.card.MaterialCardView>
 
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/fabEditar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:text="Agregar área"
+        app:icon="@drawable/ic_add"
+        app:backgroundTint="?attr/colorSecondaryContainer"
+        app:iconTint="?attr/colorOnSecondaryContainer"
+    android:textColor="?attr/colorOnSecondaryContainer"
+    app:layout_constraintTop_toBottomOf="@id/top_card"
+    app:layout_constraintEnd_toEndOf="parent"/>
+
+    <LinearLayout
+        android:id="@+id/fabOpcionesEdicion"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:layout_margin="16dp"
+        app:layout_constraintTop_toBottomOf="@+id/fabEditar"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabDeshacer"
+            android:layout_marginBottom="8dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Deshacer"
+            android:src="@drawable/ic_undo"
+            app:backgroundTint="?attr/colorTertiaryContainer"
+            app:tint="?attr/colorOnTertiaryContainer" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabReiniciar"
+            android:layout_marginBottom="8dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Reiniciar"
+            android:src="@drawable/ic_delete"
+            app:backgroundTint="?attr/colorErrorContainer"
+            app:tint="?attr/colorOnErrorContainer" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabFinalizar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Finalizar edición"
+            android:src="@drawable/ic_check"
+            app:backgroundTint="?attr/colorPrimary"
+            app:tint="?attr/colorOnPrimary"/>
+    </LinearLayout>
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/btnCentrar"
+        android:text="Centrar Mapa"
+        app:icon="@drawable/ic_zoom"
+        app:layout_constraintBottom_toTopOf="@id/bottom_card"
+        app:layout_constraintStart_toStartOf="@id/bottom_card"
+        android:visibility="gone">
+
+
+    </Button>
+
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/bottom_card"
@@ -62,7 +128,8 @@
         android:layout_margin="16dp"
         app:cardCornerRadius="16dp"
         app:cardElevation="8dp"
-        android:visibility="gone">
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:visibility="visible">
 
     <LinearLayout
         android:id="@+id/bottom_panel"
@@ -79,12 +146,31 @@
         android:textSize="18sp"
         android:textStyle="bold" />
 
-    <TextView
-        android:id="@+id/text_content"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Esperando datos del dispositivo..."
-        android:paddingTop="8dp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/text_total_dispositivos"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/dispositivos_total"
+                android:paddingTop="8dp" />
+            <TextView
+                android:id="@+id/text_dispositivos_activos"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/dispositivos_activos"
+                android:paddingTop="8dp" />
+
+            <TextView
+                android:id="@+id/text_dispositivos_fuera_rango"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/dispositivos_fuera_rango"
+                android:paddingTop="8dp" />
+        </LinearLayout>
+
     </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
-</FrameLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
