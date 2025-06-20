@@ -1,312 +1,261 @@
 package com.dasc.pecustrack.ui.viewmodel
 
-import android.Manifest
-import android.app.Application
+import android.content.Context
 import android.location.Location
-import android.os.Looper
 import android.util.Log
 import android.widget.Toast
-import androidx.annotation.RequiresPermission
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dasc.pecustrack.data.database.entities.DispositivoDatabase
-import com.dasc.pecustrack.data.database.entities.PoligonoDatabase
 import com.dasc.pecustrack.data.model.Dispositivo
 import com.dasc.pecustrack.data.model.Poligono
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
+import com.dasc.pecustrack.data.repository.DispositivoRepository
+import com.dasc.pecustrack.data.repository.PoligonoRepository
+import com.dasc.pecustrack.domain.editor.PoligonoEditorManager
+import com.dasc.pecustrack.domain.usecase.device.VerificarEstadoDispositivosUseCase
+import com.dasc.pecustrack.location.ILocationProvider
+import com.dasc.pecustrack.utils.LocationUtils.calcularDistancia
+import com.dasc.pecustrack.utils.StringFormatUtils.formatearDistancia
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.Marker
-import com.google.maps.android.PolyUtil
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 enum class ModoEdicionPoligono {
     NINGUNO,    // No se está creando ni editando
     CREANDO,    // Creando un nuevo polígono
     EDITANDO    // Editando un polígono existente (esta parte es más compleja y puede requerir más estado)
 }
+@HiltViewModel
+class MapsViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
+    private val dispositivoRepository: DispositivoRepository,
+    private val poligonoRepository: PoligonoRepository,
+    private val poligonoEditorManager: PoligonoEditorManager,
+    private val locationProvider: ILocationProvider,
+    private val verificarEstadoDispositivosUseCase: VerificarEstadoDispositivosUseCase,
+    private val guardarPoligonoUseCase: com.dasc.pecustrack.domain.usecase.polygon.GuardarPoligonoUseCase
+) : ViewModel() {
 
-class MapsViewModel(application: Application) : AndroidViewModel(application) {
+    private val _userLocation = MutableStateFlow<Location?>(null)
+    val userLocation: StateFlow<Location?> = _userLocation.asStateFlow()
 
-    private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(application)
-    private val dispositivosDao = DispositivoDatabase.obtenerInstancia(application).dispositivoDao()
-    private val _dispositivos = MutableLiveData<List<Dispositivo>>()
-    val dispositivos: LiveData<List<Dispositivo>> get() = _dispositivos
+    val distanciaTexto = MutableLiveData<String>()
 
-    private val poligonosDao = PoligonoDatabase.obtenerInstancia(application).poligonoDao()
-    private val _poligonos = MutableLiveData<List<Poligono>>()
-    val poligonos: LiveData<List<Poligono>> get() = _poligonos
-
-    // --- Estado para la Creación de Polígonos ---
-    private val _modoEdicion = MutableLiveData<ModoEdicionPoligono>(ModoEdicionPoligono.NINGUNO)
-    val modoEdicion: LiveData<ModoEdicionPoligono> = _modoEdicion
-
-    private val _puntosPoligonoActual = MutableLiveData<List<LatLng>>(emptyList())
-    val puntosPoligonoActual: LiveData<List<LatLng>> = _puntosPoligonoActual
-
-    // --- Estado para la Selección de Polígonos Existentes ---
-    private val _poligonoSeleccionadoId = MutableLiveData<Int?>() // ID de tu PoligonoData
-    val poligonoSeleccionadoId: LiveData<Int?> = _poligonoSeleccionadoId
-
-    private val _ubicacionActual = MutableLiveData<Location>()
-    val ubicacionActual: LiveData<Location> get() = _ubicacionActual
-
-    private val _distanciaTexto = MediatorLiveData<String>()
-    val distanciaTexto: LiveData<String> get() = _distanciaTexto
-
-
-    private val _dispositivoSeleccionado = MutableLiveData<Dispositivo?>()
-    val dispositivoSeleccionado: LiveData<Dispositivo?> get() = _dispositivoSeleccionado
+    private val _dispositivoSeleccionado = MutableStateFlow<Dispositivo?>(null) // Inicializa con null
+    val dispositivoSeleccionado: StateFlow<Dispositivo?> = _dispositivoSeleccionado.asStateFlow()
 
     val markerDispositivoMap = mutableMapOf<Marker, Dispositivo>()
+    val idPoligonoActualmenteEnEdicion: StateFlow<Int?> = poligonoEditorManager.idPoligonoEnEdicion
 
-    private lateinit var locationCallback: LocationCallback
+    //val dispositivos: LiveData<List<Dispositivo>> get() = _dispositivos
+
+    val dispositivos: StateFlow<List<Dispositivo>> = dispositivoRepository.getAllDispositivos()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Lazily, // O SharingStarted.WhileSubscribed(5000)
+            initialValue = emptyList()
+        )
+
+    // Poligonos como StateFlow para observación en UI
+
+    val poligonos: StateFlow<List<Poligono>> = poligonoRepository.getAllPoligonos()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Observa el estado del PoligonoEditorManager
+    val modoEdicionPoligono: StateFlow<ModoEdicionPoligono> = poligonoEditorManager.modoEdicion
+    val puntosPoligonoActualParaDibujar: StateFlow<List<LatLng>> = poligonoEditorManager.puntosPoligonoActual
+
+    // El ID del polígono seleccionado por el usuario para ver detalles o iniciar edición
+    private val _poligonoSeleccionadoId = MutableStateFlow<Int?>(null)
+    val poligonoSeleccionadoId: StateFlow<Int?> = _poligonoSeleccionadoId.asStateFlow()
 
     init {
-        _distanciaTexto.addSource(_ubicacionActual) { actualizarDistancia() }
-        _distanciaTexto.addSource(_dispositivoSeleccionado) { actualizarDistancia() }
-    }
-
-    fun iniciarModoCreacionPoligono() {
-        _modoEdicion.value = ModoEdicionPoligono.CREANDO
-        _puntosPoligonoActual.value = emptyList()
-        _poligonoSeleccionadoId.value = null // Deselecciona cualquier polígono existente
-    }
-
-    fun cancelarCreacionEdicionPoligono() {
-        _modoEdicion.value = ModoEdicionPoligono.NINGUNO
-        _puntosPoligonoActual.value = emptyList()
-    }
-
-    fun añadirPuntoAPoligonoActual(punto: LatLng) {
-        if (_modoEdicion.value == ModoEdicionPoligono.CREANDO /* || _modoEdicion.value == ModoEdicionPoligono.EDITANDO */) {
-            val puntosActuales = _puntosPoligonoActual.value?.toMutableList() ?: mutableListOf()
-            puntosActuales.add(punto)
-            _puntosPoligonoActual.value = puntosActuales
-        }
-    }
-
-    fun deshacerUltimoPunto() {
-        if (_modoEdicion.value == ModoEdicionPoligono.CREANDO /* || ... */ && _puntosPoligonoActual.value?.isNotEmpty() == true) {
-            val puntosActuales = _puntosPoligonoActual.value!!.toMutableList()
-            puntosActuales.removeAt(puntosActuales.size - 1)
-            _puntosPoligonoActual.value = puntosActuales
-        }
-    }
-
-    fun reiniciarPoligonoActual() {
-        if (_modoEdicion.value == ModoEdicionPoligono.CREANDO /* || ... */) {
-            _puntosPoligonoActual.value = emptyList()
-        } else{
-            if(_modoEdicion.value == ModoEdicionPoligono.EDITANDO) {
-
-            } else {
-                Log.w("MapsViewModel", "No se está creando ni editando un polígono.")
-            }
-        }
-    }
-
-    fun guardarPoligonoActual() { // Nombre podría ser opcional si editas
-        val puntosAGuardar = _puntosPoligonoActual.value
-        if (puntosAGuardar.isNullOrEmpty() || puntosAGuardar.size < 3) { // Un polígono necesita al menos 3 puntos
-            Log.w("MapsViewModel", "No hay suficientes puntos para guardar el polígono.")
-            Toast.makeText(getApplication(), "Debe haber al menos 3 puntos para crear un polígono.", Toast.LENGTH_LONG).show()
-            cancelarCreacionEdicionPoligono()
-            return
+        // Obtener la última ubicación conocida al iniciar
+        viewModelScope.launch {
+            val lastLocation = locationProvider.getLastKnownLocationSuspending()
+            _userLocation.value = lastLocation
+            lastLocation?.let { recalcularDistancias(it) }
         }
 
-        when (_modoEdicion.value) {
-            ModoEdicionPoligono.CREANDO -> {
-                viewModelScope.launch {
-                    // val nombreReal = nombre ?: "Área ${System.currentTimeMillis()}" // Nombre por defecto si es nulo
-                    // val nuevoPoligono = PoligonoData(id = 0 /* o generado por DB */, nombre = nombreReal, puntos = puntosAGuardar)
-                    // poligonoRepository.insertarPoligono(nuevoPoligono)
-
-                        val poligono = Poligono(
-                            id = 0,
-                            puntos = puntosAGuardar.map { LatLng(it.latitude, it.longitude) }
-                        )
-                        poligonosDao.insertar(poligono)
-                    Log.d("MapsViewModel", "Guardando NUEVO polígono con puntos: $puntosAGuardar")
-                    // cargarPoligonos() // Vuelve a cargar la lista de polígonos
+        viewModelScope.launch {
+            locationProvider.lastKnownLocation.collect { location ->
+                if (location != null) {
+                    _userLocation.value = location
+                    recalcularDistancias(location)
                 }
             }
-            ModoEdicionPoligono.EDITANDO -> {
-                val idPoligonoEditado = _poligonoSeleccionadoId.value
-                if (idPoligonoEditado != null) {
-                    viewModelScope.launch {
-                        // val poligonoActualizado = PoligonoData(id = idPoligonoEditado, nombre = "Nombre del polígono editado si es necesario", puntos = puntosAGuardar)
-                        // poligonoRepository.actualizarPoligono(poligonoActualizado)
-                        val poligono = Poligono(
-                            id = idPoligonoEditado,
-                            puntos = puntosAGuardar.map { LatLng(it.latitude, it.longitude) }
-                        )
-                        poligonosDao.insertar(poligono)
-                        Log.d("MapsViewModel", "Actualizando polígono ID $idPoligonoEditado con puntos: $puntosAGuardar")
-                        // cargarPoligonos() // Vuelve a cargar la lista de polígonos
-                    }
-                } else {
-                    Log.e("MapsViewModel", "Error: Se intentó guardar en modo edición sin un ID de polígono seleccionado.")
-                }
-            }
-            else -> {
-                Log.w("MapsViewModel", "Guardar llamado en modo incorrecto: ${_modoEdicion.value}")
-                return // No hacer nada si no estamos creando o editando
-            }
         }
-        _modoEdicion.value = ModoEdicionPoligono.NINGUNO
-        _puntosPoligonoActual.value = emptyList() // Limpia los puntos después de guardar
 
-        cargarPoligonosBD()
+        insertarDispositivosEjemplo()
+        verificarEstadoDispositivos()
+    }
+
+    fun obtenerIdPoligonoEnEdicion(): Int? {
+        val id = poligonoEditorManager.idPoligonoEnEdicion.value // Accede al valor actual del StateFlow
+        Log.d("MapsViewModel", "obtenerIdPoligonoEnEdicion: ID actual en edición es $id")
+        return id
     }
 
     fun seleccionarPoligonoPorId(idPoligono: Int?) {
         if (_poligonoSeleccionadoId.value == idPoligono && idPoligono != null) {
-            // Si se hace clic de nuevo en el mismo polígono seleccionado, podría deseleccionarlo o iniciar edición de puntos
-            // Para ejemplo, lo deseleccionaremos.
+            // Si se hace clic de nuevo en el mismo polígono, se podría deseleccionar
+            // o se podría preparar para la edición de puntos (ver siguiente función)
             _poligonoSeleccionadoId.value = null
-            _modoEdicion.value = ModoEdicionPoligono.NINGUNO // Salir de cualquier modo de edición
+            poligonoEditorManager.cancelarCreacionEdicionPoligono() // Cancela cualquier edición
         } else {
             _poligonoSeleccionadoId.value = idPoligono
-            _modoEdicion.value =
-                ModoEdicionPoligono.NINGUNO // Por defecto, solo seleccionar, no editar puntos
+            poligonoEditorManager.establecerPoligonoParaEdicion(idPoligono)
+            poligonoEditorManager.cancelarCreacionEdicionPoligono() // Cancela al seleccionar uno nuevo
         }
+    }
+
+    fun deseleccionarPoligono() {
+        // Si poligonoSeleccionadoId es MutableStateFlow:
+        _poligonoSeleccionadoId.value = null
+        // Si poligonoSeleccionadoId es el StateFlow del PoligonoEditorManager para el ID del que se está editando,
+        // entonces esta lógica estaría más bien en PoligonoEditorManager.cancelarEdicion() o similar.
+        // Aquí asumimos un ID de polígono seleccionado para visualización/resaltado general.
+        poligonoEditorManager.establecerPoligonoParaEdicion(null) // Esto pondría el modo en NINGUNO
+    }
+
+    fun actualizarPuntoPoligonoEnEdicion(indice: Int, nuevaPosicion: LatLng) {
+        Log.d("MapsViewModel", "actualizarPuntoPoligonoEnEdicion: Índice $indice, Posición $nuevaPosicion")
+        poligonoEditorManager.actualizarPuntoPoligonoActual(indice, nuevaPosicion) // <-- PUNTO CRÍTICO 2
+    }
+
+    fun iniciarModoCreacionPoligono() {
+        _poligonoSeleccionadoId.value = null // Deselecciona cualquier polígono
+        poligonoEditorManager.iniciarModoCreacionPoligono()
     }
 
     fun iniciarEdicionPuntosPoligonoSeleccionado() {
-        val idPoligonoAEditar = _poligonoSeleccionadoId.value ?: return // No hay nada seleccionado
-
-        // Encuentra el polígono en tu lista de polígonos guardados (o cárgalo desde el repositorio)
-        // Este es un ejemplo si tienes 'poligonosGuardados' como un LiveData<List<TuClasePoligono>>
-        // Deberías tener una forma de acceder a los datos de tus polígonos.
-        val poligonos = this.poligonos.value // 'this.poligonos' se refiere al LiveData de tus polígonos guardados
-        val poligonoParaEditar = poligonos?.find { it.id == idPoligonoAEditar }
-
-        if (poligonoParaEditar != null) {
-            _puntosPoligonoActual.value = poligonoParaEditar.puntos.toList() // Crea una nueva lista para asegurar la observabilidad
-            _modoEdicion.value = ModoEdicionPoligono.EDITANDO
-            Log.d("MapsViewModel", "Iniciando edición para polígono ID: $idPoligonoAEditar. Puntos cargados: ${poligonoParaEditar.puntos.size}")
-        } else {
-            Log.w("MapsViewModel", "No se encontró el polígono con ID $idPoligonoAEditar para editar.")
-            // Opcionalmente, volver a NINGUNO si no se puede editar
-            // _modoEdicion.value = ModoEdicionPoligono.NINGUNO
-        }
-    }
-
-    fun actualizarPuntoPoligono(indice: Int, nuevoPunto: LatLng) {
-        if (_modoEdicion.value == ModoEdicionPoligono.CREANDO || _modoEdicion.value == ModoEdicionPoligono.EDITANDO) {
-            val puntosActuales = _puntosPoligonoActual.value?.toMutableList() ?: return
-            if (indice >= 0 && indice < puntosActuales.size) {
-                puntosActuales[indice] = nuevoPunto
-                _puntosPoligonoActual.value = puntosActuales
+        val idPoligonoAEditar = _poligonoSeleccionadoId.value ?: return
+        viewModelScope.launch {
+            // Obtener los puntos del polígono seleccionado del repositorio
+            val poligonoParaEditar = poligonoRepository.getPoligonoById(idPoligonoAEditar) // Asume/crea este
+            if (poligonoParaEditar != null) {
+                poligonoEditorManager.iniciarModoEdicionPuntos(idPoligonoAEditar, poligonoParaEditar.puntos)
+            } else {
+                Log.w("MapsViewModel", "No se encontró el polígono con ID $idPoligonoAEditar para editar.")
+                Toast.makeText(appContext, "No se encontró el polígono para editar.", Toast.LENGTH_LONG).show()
             }
         }
     }
 
+    fun cancelarCreacionEdicionPoligono() {
+        poligonoEditorManager.cancelarCreacionEdicionPoligono()
+        // No es necesario resetear _poligonoSeleccionadoId aquí,
+        // porque la cancelación es solo de la edición de puntos,
+        // el polígono podría seguir "seleccionado" visualmente.
+        // _puntosPoligonoActual.value = emptyList()
+    }
+
+    fun agregarPuntoAPoligonoActual(punto: LatLng) {
+        poligonoEditorManager.anadirPuntoAPoligonoActual(punto)
+    }
+
+    fun deshacerUltimoPuntoPoligono() { // Renombrado para claridad
+        poligonoEditorManager.deshacerUltimoPunto()
+    }
+
+    fun reiniciarPuntosPoligonoActual() { // Renombrado para claridad
+        poligonoEditorManager.reiniciarPoligonoActual()
+    }
+
+    fun actualizarPuntoPoligono(indice: Int, nuevoPunto: LatLng) {
+        poligonoEditorManager.actualizarPuntoPoligono(indice, nuevoPunto)
+    }
+
     fun eliminarPuntoPoligono(indice: Int) {
-        if (_modoEdicion.value == ModoEdicionPoligono.CREANDO || _modoEdicion.value == ModoEdicionPoligono.EDITANDO) {
-            val puntosActuales = _puntosPoligonoActual.value?.toMutableList() ?: return
-            if (indice >= 0 && indice < puntosActuales.size) {
-                puntosActuales.removeAt(indice)
-                _puntosPoligonoActual.value = puntosActuales
+        poligonoEditorManager.eliminarPuntoPoligono(indice)
+    }
+
+    fun guardarPoligonoEditadoActual() {
+        val datosParaGuardar = poligonoEditorManager.obtenerDatosParaGuardar()
+
+        if (datosParaGuardar == null) {
+            // PoligonoEditorManager ya decidió que no se puede guardar (ej. pocos puntos)
+            // Aquí puedes mostrar un Toast o mensaje al usuario.
+            // Ejemplo: _uiEvents.trySend(UiEvent.ShowToast("Se necesitan al menos 3 puntos."))
+            Log.w("MapsViewModel", "No se puede guardar el polígono: datos inválidos desde PoligonoEditorManager.")
+            Toast.makeText(appContext, "Debe haber al menos 3 puntos para crear un polígono.", Toast.LENGTH_LONG).show()
+            // Considera si quieres cancelar la edición aquí también
+            poligonoEditorManager.cancelarCreacionEdicionPoligono()
+            return
+        }
+
+        val (id, puntos) = datosParaGuardar
+        viewModelScope.launch {
+            try {
+                // El caso de uso maneja si es un insert o un update basado en si el id es null
+                guardarPoligonoUseCase(id, puntos)
+                Log.d("MapsViewModel", "Polígono guardado/actualizado. ID: $id, Puntos: ${puntos.size}")
+                poligonoEditorManager.cancelarCreacionEdicionPoligono() // Sale del modo edición
+                _poligonoSeleccionadoId.value = null; // Opcional: deseleccionar después de guardar
+                // La lista de polígonos se actualizará automáticamente si observas el Flow del repositorio.
+            } catch (e: Exception) {
+                Log.e("MapsViewModel", "Error al guardar el polígono", e)
+                // Mostrar error al usuario
             }
         }
     }
 
     fun eliminarPoligonoSeleccionado() {
-        val idPoligonoAEliminar = _poligonoSeleccionadoId.value ?: return // No hay nada seleccionado
+        val idPoligonoAEliminar = _poligonoSeleccionadoId.value ?: return
         viewModelScope.launch {
-            poligonosDao.eliminarPorId(idPoligonoAEliminar)
-            _poligonos.value = poligonosDao.obtenerTodos()
-            _poligonoSeleccionadoId.value = null // Deselecciona el polígono después de eliminarlo
-            _modoEdicion.value = ModoEdicionPoligono.NINGUNO // Salir de cualquier modo de edición
-        }
-    }
-
-    fun cargarDispositivosBD() {
-        viewModelScope.launch {
-            _dispositivos.value = dispositivosDao.obtenerTodos()
-        }
-    }
-
-    fun cargarPoligonosBD() {
-        viewModelScope.launch {
-            _poligonos.value = poligonosDao.obtenerTodos()
+            poligonoRepository.deletePoligonoById(idPoligonoAEliminar)
+            _poligonoSeleccionadoId.value = null
+            poligonoEditorManager.cancelarCreacionEdicionPoligono()
         }
     }
 
     fun guardarPoligono(id: Int, lista: List<LatLng>){
-        //TODO: Implementar lógica para guardar polígono
         viewModelScope.launch {
             val poligono = Poligono(
                 id = id,
                 puntos = lista.map { LatLng(it.latitude, it.longitude) }
             )
-            poligonosDao.insertar(poligono)
-            _poligonos.value = poligonosDao.obtenerTodos()
-        }
-    }
-
-    fun guardarDispositivos(lista: List<Dispositivo>) {
-        viewModelScope.launch {
-            dispositivosDao.insertarTodos(lista)
-            _dispositivos.value = lista
+            poligonoRepository.insertPoligono(poligono)
         }
     }
 
     fun verificarEstadoDispositivos() {
-        Log.d("MapsViewModel", "Verificando estado de dispositivos...")
         viewModelScope.launch {
-            val ahora = System.currentTimeMillis()
-            Log.d("MapsViewModel", "Cantidad de poligonos: ${_poligonos.value?.size ?: 0}")
-            Log.d("MapsViewModel", "Cantidad de dispositivos: ${_dispositivos.value?.size ?: 0}")
-            val poligonosActuales = _poligonos.value ?: emptyList() // Usar emptyList si es nulo
-            val dispositivosActualizados = _dispositivos.value?.map { dispositivo ->
-                val ultimaConexion = dispositivo.ultimaConexion ?: 0L
-                val activo = (ahora - ultimaConexion) <= 60_000L
-
-                val ubicacion = LatLng(dispositivo.latitud, dispositivo.longitud)
-                val estaDentro = dispositivoEstaDentroDeAlgunPoligono(ubicacion, poligonosActuales)
-
-                if(dispositivo.activo != activo || dispositivo.dentroDelArea != estaDentro) {
-                    dispositivo.copy(
-                        activo = activo,
-                        dentroDelArea = estaDentro
-                    )
-                }else{
-                    dispositivo
-                }
-            }
-
-            dispositivosActualizados?.let {
-                dispositivosDao.insertarTodos(it)
-                _dispositivos.value = it
-            }
+            val dispositivosActualizados = verificarEstadoDispositivosUseCase()
+            dispositivoRepository.insertAllDispositivos(dispositivosActualizados)
         }
     }
 
+    /*
     fun actualizarDetallesDispositivo(dispositivoActualizado: Dispositivo) {
         viewModelScope.launch {
-            dispositivosDao.insertar(dispositivoActualizado)
+            dispositivoRepository.insertDispositivo(dispositivoActualizado)
 
-            // Luego, actualiza la lista en el LiveData para que la UI reaccione
             val listaActual = _dispositivos.value?.toMutableList() ?: mutableListOf()
             val index = listaActual.indexOfFirst { it.id == dispositivoActualizado.id }
             if (index != -1) {
                 listaActual[index] = dispositivoActualizado
-                _dispositivos.value = listaActual // Emite la lista actualizada
+                _dispositivos.value = listaActual
             }
-            // O si tu repositorio devuelve un Flow o LiveData, la UI podría actualizarse automáticamente
-            // tras la operación de base de datos.
+
+            // Actualiza el dispositivo seleccionado si es el mismo
+            if (_dispositivoSeleccionado.value?.id == dispositivoActualizado.id) {
+                _dispositivoSeleccionado.value = dispositivoActualizado
+            }
         }
     }
+
+     */
 
     fun insertarDispositivosEjemplo() {
         val lista = listOf(
@@ -316,11 +265,8 @@ class MapsViewModel(application: Application) : AndroidViewModel(application) {
             Dispositivo(4, "Vaquita de la calle", "No es de nadie, pero es de todos", 24.1487217, -110.2767691, 1750271280, System.currentTimeMillis(), true)
         )
         viewModelScope.launch {
-            dispositivosDao.insertarTodos(lista)
-            _dispositivos.value = lista
+            dispositivoRepository.insertAllDispositivos(lista)
         }
-        cargarDispositivosBD()
-        cargarPoligonosBD()
     }
 
     fun seleccionarDispositivo(dispositivo: Dispositivo) {
@@ -331,75 +277,45 @@ class MapsViewModel(application: Application) : AndroidViewModel(application) {
         _dispositivoSeleccionado.value = null
     }
 
-    private fun actualizarDistancia() {
-        val ubicacion = _ubicacionActual.value
-        val dispositivo = _dispositivoSeleccionado.value
+    fun actualizarDetallesDispositivo(dispositivoActualizado: Dispositivo) {
+        viewModelScope.launch {
+            try {
+                dispositivoRepository.updateDispositivo(dispositivoActualizado) // Asume este método en el repo
+                // El StateFlow 'dispositivos' se actualizará automáticamente si el repo emite el cambio.
 
-        if (ubicacion != null && dispositivo != null) {
-            val destino = Location("").apply {
-                latitude = dispositivo.latitud
-                longitude = dispositivo.longitud
-            }
-            val distanciaMetros = calcularDistancia(ubicacion, destino)
-            _distanciaTexto.value = if (distanciaMetros >= 1000) {
-                String.format("%.2f km", distanciaMetros / 1000)
-            } else {
-                String.format("%.0f m", distanciaMetros)
-            }
-        } else {
-            if(modoEdicion.value == ModoEdicionPoligono.NINGUNO) {
-                _distanciaTexto.value = "Selecciona un dispositivo"
-            }
-        }
-    }
-
-    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
-    fun iniciarActualizacionUbicacion() {
-        val locationRequest = LocationRequest.Builder(
-            Priority.PRIORITY_HIGH_ACCURACY,
-            5000L
-        ).build()
-
-        locationCallback = object : LocationCallback() {
-            override fun onLocationResult(result: LocationResult) {
-                result.lastLocation?.let {
-                    _ubicacionActual.postValue(it)
+                // Si el dispositivo editado es el que está seleccionado, actualiza también _dispositivoSeleccionado
+                // Si _dispositivoSeleccionado es LiveData:
+                if (_dispositivoSeleccionado.value?.id == dispositivoActualizado.id) {
+                    _dispositivoSeleccionado.value = dispositivoActualizado
                 }
-            }
-        }
+                // Si _dispositivoSeleccionado fuera un MutableStateFlow:
+                // if (_dispositivoSeleccionado.value?.id == dispositivoActualizado.id) {
+                //     _dispositivoSeleccionado.value = dispositivoActualizado
+                // }
 
-        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
-    }
-
-    fun detenerActualizacionUbicacion() {
-        if (::locationCallback.isInitialized) {
-            fusedLocationClient.removeLocationUpdates(locationCallback)
-        }
-    }
-
-    fun calcularDistancia(origen: Location, destino: Location): Float {
-        return origen.distanceTo(destino)
-    }
-
-    fun actualizarUbicacionDispositivo(dispositivoActualizado: Dispositivo) {
-        val entry = markerDispositivoMap.entries.find { it.value.id == dispositivoActualizado.id }
-        entry?.let { (marker, _) ->
-            marker.position = LatLng(dispositivoActualizado.latitud, dispositivoActualizado.longitud)
-            markerDispositivoMap[marker] = dispositivoActualizado
-            if (_dispositivoSeleccionado.value?.id == dispositivoActualizado.id) {
-                _dispositivoSeleccionado.value = dispositivoActualizado
+            } catch (e: Exception) {
+                Log.e("MapsViewModel", "Error al actualizar dispositivo", e)
+                // Manejar error (e.g., mostrar Toast/Snackbar)
             }
         }
     }
 
     fun obtenerBoundsParaMapa(): LatLngBounds? {
         val listPuntos = mutableListOf<LatLng>()
-        _ubicacionActual.value.let { listPuntos.add(LatLng(_ubicacionActual.value!!.latitude, _ubicacionActual.value!!.longitude)) }
-        _dispositivos.value?.let { dispositivos ->
-            dispositivos.forEach { d ->
+
+        _userLocation.value?.let { location -> // Usa el safe call ?. y un nombre de variable (location)
+            listPuntos.add(LatLng(location.latitude, location.longitude))
+        }
+
+        val dispositivosActuales = dispositivos.value
+        if (dispositivosActuales.isNotEmpty()) { // Comprueba si la lista no está vacía
+            dispositivosActuales.forEach { d ->
                 listPuntos.add(LatLng(d.latitud, d.longitud))
             }
+        } else{
+            return null
         }
+
         if (listPuntos.isEmpty()) return null
 
         val builder = LatLngBounds.Builder()
@@ -409,121 +325,43 @@ class MapsViewModel(application: Application) : AndroidViewModel(application) {
 
     fun obtenerBoundsParaDispositivo(dispositivo: Dispositivo): LatLngBounds? {
         val listPuntos = mutableListOf<LatLng>()
-        _ubicacionActual.value.let { listPuntos.add(LatLng(_ubicacionActual.value!!.latitude, _ubicacionActual.value!!.longitude)) }
+        _userLocation.value?.let { location ->
+            listPuntos.add(LatLng(location.latitude, location.longitude))
+        }
         listPuntos.add(LatLng(dispositivo.latitud, dispositivo.longitud))
-        if (listPuntos.isEmpty()) return null
 
+        if (listPuntos.isEmpty()) return null
         val builder = LatLngBounds.Builder()
         listPuntos.forEach { builder.include(it) }
         return builder.build()
     }
 
-    fun formatearTiempoConexion(timestamp: Long?): String {
-        if (timestamp == null) return "Sin datos"
-
-        val ahora = System.currentTimeMillis()
-        val diferencia = ahora - timestamp
-
-        val minutos = diferencia / 60_000
-        val horas = diferencia / 3_600_000
-
-        return when {
-            minutos < 1 -> "Hace menos de 1 minuto"
-            minutos in 1..59 -> "Hace $minutos minuto${if (minutos == 1L) "" else "s"}"
-            horas == 1L -> "Hace 1 hora"
-            horas in 2..23 -> "Hace $horas horas"
-            else -> "Hace más de 24 horas"
+    fun iniciarActualizacionesDeUbicacionUsuario() {
+        locationProvider.startLocationUpdates { location ->
+            recalcularDistancias(location)
         }
     }
 
-    fun dispositivoEstaDentroDelPoligono(
-        ubicacionDispositivo: LatLng,
-        puntosPoligono: List<LatLng>,
-        geodesic: Boolean = false // Usualmente true para cálculos más precisos en la esfera terrestre
-    ): Boolean {
-        if (puntosPoligono.size < 3) return false // Un polígono necesita al menos 3 puntos
-        return PolyUtil.containsLocation(ubicacionDispositivo, puntosPoligono, geodesic)
+    fun detenerActualizacionesDeUbicacionUsuario() {
+        locationProvider.stopLocationUpdates()
     }
 
-    // Función para encontrar en qué polígono está un dispositivo específico
-    fun encontrarPoligonoParaDispositivo(dispositivo: Dispositivo): Poligono? {
-        val ubicacionDispositivo = LatLng(dispositivo.latitud, dispositivo.longitud) // Ajusta según tu modelo Dispositivo
-        return poligonos.value?.find { poligono ->
-            dispositivoEstaDentroDelPoligono(ubicacionDispositivo, poligono.puntos)
-        }
-    }
-
-    // Función para obtener todos los dispositivos dentro de un polígono específico
-    fun obtenerDispositivosDentroDePoligono(idPoligono: Int): List<Dispositivo> {
-        val poligonoObjetivo = poligonos.value?.find { it.id == idPoligono } ?: return emptyList()
-        val ubicacionesDispositivos = dispositivos.value ?: return emptyList()
-
-        return ubicacionesDispositivos.filter { dispositivo ->
-            val ubicacionActual = LatLng(dispositivo.latitud, dispositivo.longitud)
-            dispositivoEstaDentroDelPoligono(ubicacionActual, poligonoObjetivo.puntos)
-        }
-    }
-
-    // Función para actualizar el estado de todos los dispositivos (por ejemplo, después de una actualización de ubicación)
-    // Esto podría exponer un LiveData con la "membresía" de los dispositivos a los polígonos.
-    private val _dispositivosConPoligono = MutableLiveData<Map<Int, List<Int>>>() // Map<IdPoligono, List<IdDispositivo>>
-    val dispositivosConPoligono: LiveData<Map<Int, List<Int>>> = _dispositivosConPoligono
-
-    fun verificarDispositivosEnPoligonos() {
-        val poligonosActuales = poligonos.value ?: return
-        val dispositivosActuales = dispositivos.value ?: return
-        val nuevaMembresia = mutableMapOf<Int, MutableList<Int>>()
-
-        poligonosActuales.forEach { poligono ->
-            nuevaMembresia[poligono.id] = mutableListOf()
-            dispositivosActuales.forEach { dispositivo ->
-                val ubicacion = LatLng(dispositivo.latitud, dispositivo.longitud)
-                if (dispositivoEstaDentroDelPoligono(ubicacion, poligono.puntos)) {
-                    nuevaMembresia[poligono.id]?.add(dispositivo.id) // Asume que Dispositivo tiene un 'id'
+    private fun recalcularDistancias(ubicacionActual: Location) {
+        dispositivoSeleccionado.value?.let { dispositivo ->
+            val distancia = calcularDistancia(
+                ubicacionActual,
+                Location("").apply {
+                    latitude = dispositivo.latitud
+                    longitude = dispositivo.longitud
                 }
-            }
-        }
-        _dispositivosConPoligono.value = nuevaMembresia
-        Log.d("MapsViewModel", "Verificación de dispositivos en polígonos completada: $nuevaMembresia")
-    }
-
-    private fun dispositivoEstaDentroDeAlgunPoligono(
-        ubicacionDispositivo: LatLng,
-        listaPoligonos: List<Poligono> // Pasa la lista actual de polígonos
-    ): Boolean {
-        if (listaPoligonos.isEmpty()) return false
-        return listaPoligonos.any { poligono ->
-            if (poligono.puntos.size < 3) false
-            else PolyUtil.containsLocation(ubicacionDispositivo, poligono.puntos, true)
+            )
+            distanciaTexto.postValue(formatearDistancia(distancia))
         }
     }
 
-    fun actualizarEstadoDentroDelAreaDispositivos() {
-        val dispositivosActuales = _dispositivos.value ?: return
-        val poligonosActuales = poligonos.value ?: emptyList() // Usar emptyList si es nulo
-
-        // Crea una NUEVA lista con los estados actualizados para que LiveData emita una actualización
-        val dispositivosActualizados = dispositivosActuales.map { dispositivo ->
-            val ubicacion = LatLng(dispositivo.latitud, dispositivo.longitud)
-            val estaDentro = dispositivoEstaDentroDeAlgunPoligono(ubicacion, poligonosActuales)
-            // O si quieres asociarlo a un polígono específico:
-            // val idPoligonoContenedor = obtenerIdPoligonoContenedor(ubicacion, poligonosActuales)
-            // dispositivo.copy(dentroDelArea = (idPoligonoContenedor != null), idPoligonoActual = idPoligonoContenedor)
-
-            if (dispositivo.dentroDelArea != estaDentro) { // Solo copia si el estado cambia
-                dispositivo.copy(dentroDelArea = estaDentro)
-            } else {
-                dispositivo // Sin cambios, devuelve el original
-            }
-        }
-
-        // Solo actualiza el LiveData si hubo cambios reales en el estado 'dentroDelArea' de algún dispositivo,
-        // o si la lista de dispositivos en sí cambió (lo cual ya maneja LiveData).
-        // Una forma simple es siempre postear, LiveData es eficiente si el contenido no cambia.
-        if (dispositivosActuales != dispositivosActualizados) { // Comprueba si la lista transformada es diferente
-            _dispositivos.value = dispositivosActualizados
-            Log.d("MapsViewModel", "Estado 'dentroDelArea' de dispositivos actualizado.")
-        }
+    override fun onCleared() {
+        super.onCleared()
+        detenerActualizacionesDeUbicacionUsuario()
     }
 
 

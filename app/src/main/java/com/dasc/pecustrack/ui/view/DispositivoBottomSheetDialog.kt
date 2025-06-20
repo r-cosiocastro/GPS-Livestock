@@ -5,16 +5,23 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
+import kotlinx.coroutines.launch
 import androidx.core.net.toUri
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.dasc.pecustrack.R
 import com.dasc.pecustrack.data.model.Dispositivo
 import com.dasc.pecustrack.ui.viewmodel.MapsViewModel
+import com.dasc.pecustrack.utils.StringFormatUtils.formatearTiempoConexion
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
 class DispositivoBottomSheetDialog : BottomSheetDialogFragment(){
@@ -28,34 +35,48 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment(){
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        val textTitulo = view.findViewById<TextView>(R.id.textTitulo)
+        val textDescripcion = view.findViewById<TextView>(R.id.textDescripcion)
         val textDistancia = view.findViewById<TextView>(R.id.textDistancia)
+        val textUltConexion = view.findViewById<TextView>(R.id.textUltConexion)
+        val textEstado = view.findViewById<TextView>(R.id.textEstado)
+        val btnNavegar = view.findViewById<Button>(R.id.btnNavegar)
+        val btnEditar = view.findViewById<Button>(R.id.btnEditar)
 
         viewModel.distanciaTexto.observe(viewLifecycleOwner) { texto ->
             textDistancia.text = "Distancia: $texto"
         }
 
-        viewModel.dispositivoSeleccionado.observe(viewLifecycleOwner) { dispositivo ->
-            view.findViewById<TextView>(R.id.textTitulo).text = dispositivo?.nombre
-            view.findViewById<TextView>(R.id.textDescripcion).text = dispositivo?.descripcion
+        viewLifecycleOwner.lifecycleScope.launch { // <--- ESTA ES LA LÍNEA CLAVE
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.dispositivoSeleccionado.collect { dispositivo ->
+                    if (dispositivo != null) {
+                        textTitulo.text = dispositivo.nombre
+                        textDescripcion.text = dispositivo.descripcion
+                        actualizarInformacionDinamica(dispositivo)
+
+                        btnEditar.setOnClickListener {
+                            val editSheet = EditDispositivoBottomSheet.newInstance(dispositivo)
+                            editSheet.show(parentFragmentManager, EditDispositivoBottomSheet.TAG)
+                            Log.d("DispositivoBottomSheetDialog", "Edit button clicked for device: ${dispositivo.nombre}")
+                        }
+                    } else {
+                        if (isAdded && dialog?.isShowing == true) {
+                            dismissAllowingStateLoss()
+                        }
+                    }
+                }
+            }
         }
 
-        val btnNavegar = view.findViewById<Button>(R.id.btnNavegar)
-        val btnEditar = view.findViewById<Button>(R.id.btnEditar)
+
 
         btnNavegar.setOnClickListener {
             val uri = "google.navigation:q=${dispositivo.latitud},${dispositivo.longitud}".toUri()
             val intent = Intent(Intent.ACTION_VIEW, uri)
             intent.setPackage("com.google.android.apps.maps")
             startActivity(intent)
-        }
-
-        btnEditar.setOnClickListener {
-            viewModel.dispositivoSeleccionado.value?.let { dispositivo ->
-                val editBottomSheet = EditDispositivoBottomSheet.newInstance(dispositivo.id)
-                editBottomSheet.show(parentFragmentManager, EditDispositivoBottomSheet.TAG)
-                // Cerrar el BottomSheet actual
-                dismiss()
-            }
         }
     }
 
@@ -75,30 +96,39 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment(){
         }
     }
 
+    private fun actualizarInformacionDinamica(dispositivo: Dispositivo?) {
+        val textoConexion = formatearTiempoConexion(dispositivo?.ultimaConexion)
+        val textoEstado = if (dispositivo != null) {
+            when {
+                !dispositivo.activo && !dispositivo.dentroDelArea -> "Fuera del área e inactivo"
+                !dispositivo.activo -> "Inactivo"
+                !dispositivo.dentroDelArea -> "Fuera del área"
+                else -> "Activo y dentro del área"
+            }
+        } else {
+            "Desconocido"
+        }
+        view?.findViewById<TextView>(R.id.textUltConexion)?.text = resources.getString(R.string.ultima_conexion, textoConexion)
+        view?.findViewById<TextView>(R.id.textEstado)?.text = resources.getString(R.string.estado_del_dispositivo, textoEstado)
+    }
+
     private val handler = Handler(Looper.getMainLooper())
     private val actualizarTiempoRunnable = object : Runnable {
         override fun run() {
-            val dispositivo = viewModel.dispositivoSeleccionado.value
-            val textoConexion = viewModel.formatearTiempoConexion(dispositivo?.ultimaConexion)
-            val textoEstado = if (!dispositivo?.activo!! && !dispositivo.dentroDelArea) {
-                "Fuera del área e inactivo"
-            } else if(!dispositivo.activo) {
-                "Inactivo"
-            } else if (!dispositivo.dentroDelArea) {
-                "Fuera del área"
-            } else {
-                "Activo y dentro del área"
-            }
-            view?.findViewById<TextView>(R.id.textUltConexion)?.text = resources.getString(R.string.ultima_conexion, textoConexion)
-            view?.findViewById<TextView>(R.id.textEstado)?.text = resources.getString(R.string.estado_del_dispositivo, textoEstado)
+            val dispositivoActual = viewModel.dispositivoSeleccionado.value
+            actualizarInformacionDinamica(dispositivoActual)
 
-            handler.postDelayed(this, 60_000L) // Repetir cada minuto
+            if (isVisible && dispositivoActual != null) {
+                handler.postDelayed(this, 60_000L)
+            }
         }
     }
 
     override fun onResume() {
         super.onResume()
-        handler.post(actualizarTiempoRunnable)
+        if (viewModel.dispositivoSeleccionado.value != null) {
+            handler.post(actualizarTiempoRunnable)
+        }
     }
 
     override fun onPause() {

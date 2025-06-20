@@ -129,7 +129,7 @@
         app:cardCornerRadius="16dp"
         app:cardElevation="8dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        android:visibility="visible">
+        android:visibility="invisible">
 
     <LinearLayout
         android:id="@+id/bottom_panel"
@@ -143,13 +143,20 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Información de los dispositivos"
-        android:textSize="18sp"
-        android:textStyle="bold" />
+        style="@style/TextAppearance.Material3.TitleLarge"/>
+
+        <com.google.android.material.divider.MaterialDivider
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"/>
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:layout_height="0dp"
+            android:orientation="vertical"
+            android:layout_weight="3"
+            android:layout_gravity="center"
+            android:paddingTop="8dp">
             <TextView
                 android:id="@+id/text_total_dispositivos"
                 android:layout_width="match_parent"

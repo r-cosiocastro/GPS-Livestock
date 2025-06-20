@@ -1,9 +1,11 @@
 package com.dasc.pecustrack.ui.view
 
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.fragment.app.activityViewModels
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.dasc.pecustrack.data.model.Dispositivo // Asegúrate que la ruta sea correcta
@@ -17,18 +19,18 @@ class EditDispositivoBottomSheet : BottomSheetDialogFragment() {
     private val binding get() = _binding!!
 
     // Usar activityViewModels si el ViewModel es compartido con la Activity
-    private val mapsViewModel: MapsViewModel by activityViewModels()
+    private val viewModel: MapsViewModel by activityViewModels()
 
-    private var dispositivoAEditar: Dispositivo? = null
+    private var dispositivoActual: Dispositivo? = null
 
     companion object {
         const val TAG = "EditDispositivoBottomSheet"
-        private const val ARG_DISPOSITIVO_ID = "dispositivo_id"
+        private const val ARG_DISPOSITIVO = "dispositivo_a_editar"
 
-        fun newInstance(dispositivoId: Int): EditDispositivoBottomSheet {
+        fun newInstance(dispositivo: Dispositivo): EditDispositivoBottomSheet {
             val fragment = EditDispositivoBottomSheet()
             val args = Bundle()
-            args.putInt(ARG_DISPOSITIVO_ID, dispositivoId)
+            args.putParcelable(ARG_DISPOSITIVO, dispositivo)
             fragment.arguments = args
             return fragment
         }
@@ -45,34 +47,20 @@ class EditDispositivoBottomSheet : BottomSheetDialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        val dispositivoId = arguments?.getInt(ARG_DISPOSITIVO_ID)
-        if (dispositivoId == null) {
-            // Manejar error o cerrar el diálogo si no hay ID
+        if (dispositivoActual == null) {
+            // Si no se pasó un dispositivo para editar, cerramos el diálogo
+            Toast.makeText(context, "Error: No se proporcionó dispositivo para editar.", Toast.LENGTH_SHORT).show()
             dismiss()
             return
         }
 
-        // Observa la lista de dispositivos para encontrar el que se va a editar
-        // O mejor, si tienes un LiveData para el dispositivo seleccionado en el ViewModel, úsalo.
-        // Aquí asumimos que lo buscamos en la lista completa por ID:
-        mapsViewModel.dispositivos.observe(viewLifecycleOwner) { listaDispositivos ->
-            dispositivoAEditar = listaDispositivos?.find { it.id == dispositivoId }
-            dispositivoAEditar?.let { dispositivo ->
-                binding.editTextNombre.setText(dispositivo.nombre)
-                binding.editTextDescripcion.setText(dispositivo.descripcion)
-            }
+        dispositivoActual?.let { disp ->
+            binding.editTextNombre.setText(disp.nombre)
+            binding.editTextDescripcion.setText(disp.descripcion)
+            // Aquí podrías configurar otros campos si los tuvieras en el layout de edición
+            // Por ejemplo, un Switch para 'activo'
+            // binding.switchActivo.isChecked = disp.activo
         }
-        // Si tienes un LiveData específico para el dispositivo seleccionado en MapsViewModel:
-        // mapsViewModel.dispositivoSeleccionadoLiveData.observe(viewLifecycleOwner) { dispositivo ->
-        //     dispositivoAEditar = dispositivo
-        //     dispositivoAEditar?.let {
-        //         binding.editTextNombre.setText(it.nombre)
-        //         binding.editTextDescripcion.setText(it.descripcion)
-        //         // Si el dispositivo seleccionado se vuelve nulo mientras el diálogo está abierto, cierra el diálogo.
-        //         if (it == null) dismiss()
-        //     } ?: dismiss() // Cierra si el dispositivo es nulo
-        // }
-
 
         binding.buttonGuardar.setOnClickListener {
             guardarCambios()
@@ -94,13 +82,56 @@ class EditDispositivoBottomSheet : BottomSheetDialogFragment() {
             binding.textFieldNombreLayout.error = null
         }
 
-        dispositivoAEditar?.let { dispositivoOriginal ->
+        // Obtener el dispositivo original. Es importante que este sea el mismo objeto
+        // (o una copia con el mismo ID) que está siendo observado por el otro BottomSheet.
+        // Lo ideal es que el ViewModel maneje la instancia actual del dispositivo seleccionado.
+
+        // Supongamos que viewModel.dispositivoSeleccionado.value es el que se está editando
+        /*
+        viewModel.dispositivoSeleccionado.value?.let { dispositivoOriginal ->
             val dispositivoActualizado = dispositivoOriginal.copy(
                 nombre = nombreNuevo,
                 descripcion = descripcionNueva
+                // Asegúrate de copiar todos los demás campos que no se editan
             )
-            mapsViewModel.actualizarDetallesDispositivo(dispositivoActualizado) // Necesitarás esta función en tu ViewModel
+            // Llama a la función del ViewModel para actualizar
+            viewModel.actualizarDetallesDispositivo(dispositivoActualizado)
+            dismiss() // Cierra el diálogo de edición
+        } ?: run {
+            // Manejar el caso donde dispositivoSeleccionado.value es nulo, aunque no debería ocurrir
+            // si el diálogo de edición se abrió correctamente.
+            Toast.makeText(context, "Error: No se pudo encontrar el dispositivo a editar", Toast.LENGTH_SHORT).show()
             dismiss()
+        }
+
+         */
+
+        dispositivoActual?.let { dispositivoOriginal ->
+            val dispositivoEditado = dispositivoOriginal.copy( // Usa .copy() en el objeto original
+                nombre = nombreNuevo,
+                descripcion = descripcionNueva,
+                // activo = esActivoNuevo, // Si editas el estado activo
+                // Mantén los otros campos que no se editan desde el original
+                // latitud, longitud, dentroDelArea usualmente no se editan aquí
+                // ultimaConexion = System.currentTimeMillis() // Actualiza el timestamp si tienes este campo
+            )
+            viewModel.actualizarDetallesDispositivo(dispositivoEditado)
+            dismiss() // Cierra el diálogo de edición
+        } ?: run {
+            Toast.makeText(context, "Error: No se pudo encontrar el dispositivo original a editar", Toast.LENGTH_SHORT).show()
+            dismiss()
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        arguments?.let {
+            dispositivoActual = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                it.getParcelable(ARG_DISPOSITIVO, Dispositivo::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                it.getParcelable(ARG_DISPOSITIVO)
+            }
         }
     }
 

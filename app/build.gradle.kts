@@ -17,6 +17,7 @@ plugins {
     alias(libs.plugins.google.android.libraries.mapsplatform.secrets.gradle.plugin)
     id("kotlin-parcelize")
     id("com.google.devtools.ksp")
+    id("dagger.hilt.android.plugin")
 }
 
 android {
@@ -46,11 +47,11 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
     buildFeatures {
         viewBinding = true
@@ -68,12 +69,16 @@ dependencies {
     implementation(libs.google.location)
     implementation(libs.maps.utils)
     implementation(libs.gson)
+    implementation(libs.coroutines.play.services)
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
     ksp(libs.room.ksp)
     implementation(libs.lifecycle.viewmodel.ktx)
     implementation(libs.fragment.ktx)
     implementation(libs.lottie)
+    implementation(libs.splashscreen)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

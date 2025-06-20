@@ -7,4 +7,9 @@
     <string name="dispositivos_activos">Dispositivos activos: %1$d</string>
     <string name="dispositivos_fuera_rango">Dispositivos fuera del área de pastoreo: %1$d</string>
     <string name="estado_del_dispositivo">Estado: %1$s</string>
+    <string name="fab_edit">Editar Área %1$s</string>
+    <string name="editar_area_id">Editando Área %1$s</string>
+    <string name="agregar_area">Agregar Área</string>
+    <string name="creando_nueva_area">Creando nueva área de pastoreo</string>
+    <string name="editando_area_id">Editando Área %1$s</string>
 </resources>

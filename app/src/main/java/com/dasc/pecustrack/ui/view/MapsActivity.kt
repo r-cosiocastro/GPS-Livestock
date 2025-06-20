@@ -3,6 +3,7 @@ package com.dasc.pecustrack.ui.view
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.Color
 import android.os.Bundle
@@ -10,12 +11,14 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
-import androidx.lifecycle.ViewModelProvider
 import com.dasc.pecustrack.R
 import com.dasc.pecustrack.data.model.Dispositivo
 import com.dasc.pecustrack.databinding.ActivityMapsBinding
@@ -31,16 +34,26 @@ import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import androidx.core.graphics.get
 import androidx.core.graphics.set
+import androidx.core.splashscreen.SplashScreen
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.dasc.pecustrack.data.model.Poligono
+import com.dasc.pecustrack.location.LocationProviderImpl
 import com.dasc.pecustrack.ui.viewmodel.ModoEdicionPoligono
 import com.google.android.gms.maps.model.Polygon
 import com.google.android.gms.maps.model.PolygonOptions
-import com.google.maps.android.PolyUtil
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
-class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
+@AndroidEntryPoint
+class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedCallback {
 
     private lateinit var binding: ActivityMapsBinding
-    private lateinit var map: GoogleMap
-    private lateinit var viewModel: MapsViewModel
+    private lateinit var googleMap: GoogleMap
+    private val viewModel: MapsViewModel by viewModels()
 
     private var marcadorUbicacionActual: Marker? = null
     private lateinit var cowboyIcon: BitmapDescriptor
@@ -52,6 +65,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private var modoEdicion = false
     private var poligonoSeleccionado: Polygon? = null
 
+    private val marcadoresDeDispositivosActuales = mutableListOf<Marker>()
+
     private var poligonoEnCreacionVisual: Polygon? = null
     private val poligonosExistentesVisual =
         mutableMapOf<Int, Polygon>() // Key: Tu ID de PoligonoData
@@ -61,12 +76,51 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var cowIconDisabled: BitmapDescriptor
     private lateinit var cowIconWarning: BitmapDescriptor
 
+    private lateinit var splashScreen: SplashScreen
+    private val isMapReadyForSplash = AtomicBoolean(false) // Para quitar el splash
+    private val isMapFullyLoaded = AtomicBoolean(false)   // Para lógica post-carga
+
+
+    private val marcadoresVerticesActuales = mutableListOf<Marker>()
+
+    private val locationPermissionRequest = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        when {
+            permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) -> {
+                // Permiso preciso concedido. Iniciar actualizaciones.
+                viewModel.iniciarActualizacionesDeUbicacionUsuario()
+            }
+            permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false) -> {
+                // Permiso aproximado concedido. Iniciar actualizaciones (la precisión será menor).
+                viewModel.iniciarActualizacionesDeUbicacionUsuario()
+            }
+            else -> {
+                // Permiso no concedido. Informar al usuario o manejar la situación.
+                Toast.makeText(this, "Permiso de ubicación denegado", Toast.LENGTH_LONG).show()
+                // Aquí podrías mostrar un diálogo explicando por qué necesitas el permiso
+                // y ofrecer llevar al usuario a la configuración de la app.
+            }
+        }
+    }
+
+
+
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     override fun onCreate(savedInstanceState: Bundle?) {
+        splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         binding = ActivityMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        Log.d("MapsActivitySplash", "onCreate: Splash screen instalado.")
+
+        splashScreen.setKeepOnScreenCondition {
+            val keep = !isMapReadyForSplash.get()
+            Log.d("MapsActivitySplash", "setKeepOnScreenCondition: keep? $keep (isMapReadyForSplash: ${isMapReadyForSplash.get()})")
+            keep
+        }
 
         cowIcon = bitmapDescriptorFromVector(this, R.drawable.cow)!!
         cowIconDisabled = bitmapDescriptorFromVector(this, R.drawable.cow, 2.5f, true)!!
@@ -75,20 +129,38 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         cowboyIcon = bitmapDescriptorFromVector(this, R.drawable.cowboy)!!
         fenceIcon = bitmapDescriptorFromVector(this, R.drawable.ic_location, 1.0f)!!
 
-        viewModel =
-            ViewModelProvider(this, ViewModelProvider.AndroidViewModelFactory(application)).get(
-                MapsViewModel::class.java
-            )
-
         configurarObservadoresViewModel()
         configurarListenersUI()
 
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
+        Log.d("MapsActivitySplash", "onCreate: getMapAsync llamado.")
+
+
+        lifecycleScope.launch {
+            // repeatOnLifecycle asegura que la colección solo ocurra cuando
+            // el ciclo de vida está en el estado especificado (e.g., STARTED)
+            // y se cancela y reinicia automáticamente.
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.userLocation.collect { location -> // Usa collect o collectLatest
+                    // El código aquí se ejecutará cada vez que userLocation emita un nuevo valor
+                    location?.let {
+                        Log.d("MapsActivity", "Ubicación del usuario observada en Activity: $it")
+                        // moverCamaraAUbicacion(LatLng(it.latitude, it.longitude))
+                        // actualizarMarcadorUsuario(LatLng(it.latitude, it.longitude))
+                        if (viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO)
+                            return@collect
+                        val latLng = LatLng(location.latitude, location.longitude)
+                        actualizarMarcadorUbicacionActual(latLng)
+                        centrarMapa()
+                    }
+                }
+            }
+        }
 
         // Pedir permisos de ubicación
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
-            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
         ) {
             requestPermissions(
                 arrayOf(
@@ -100,147 +172,104 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         viewModel.insertarDispositivosEjemplo()
-        viewModel.iniciarActualizacionUbicacion()
 
     }
 
     private fun configurarObservadoresViewModel() {
 
-
-        viewModel.ubicacionActual.observe(this) { location ->
-            if (viewModel.modoEdicion.value != ModoEdicionPoligono.NINGUNO)
-                return@observe
-            val latLng = LatLng(location.latitude, location.longitude)
-            actualizarMarcadorUbicacionActual(latLng)
-            centrarMapa()
-            Log.d("MapsActivity", "Ubicación actual: $latLng")
-        }
-
         viewModel.distanciaTexto.observe(this) { texto ->
             binding.topText.text = texto
         }
 
-        viewModel.dispositivoSeleccionado.observe(this) { dispositivo ->
-            if (dispositivo == null) {
-                return@observe
-            }
-            centrarMapa = false
-        }
-
-        viewModel.modoEdicion.observe(this) { modo ->
-            if (modo == ModoEdicionPoligono.NINGUNO) {
-                limpiarMarcadoresDeVertices()
-                poligonoEnCreacionVisual?.remove()
-                poligonoEnCreacionVisual = null
-                // Restaura el estado de fabEditar basado en si hay un polígono seleccionado
-                if (viewModel.poligonoSeleccionadoId.value != null) {
-                    binding.fabEditar.text = "Editar Área ${viewModel.poligonoSeleccionadoId.value}"
-                    binding.fabEditar.setIconResource(R.drawable.ic_edit)
-                } else {
-                    binding.fabEditar.text = "Agregar Área"
-                    binding.fabEditar.setIconResource(R.drawable.ic_add)
-                }
-                binding.fabOpcionesEdicion.visibility = View.GONE
-                binding.fabEditar.visibility = View.VISIBLE
-
-            } else if (modo == ModoEdicionPoligono.CREANDO || modo == ModoEdicionPoligono.EDITANDO) {
-                // Asegúrate de que los marcadores de vértices se dibujen/actualicen
-                // cuando entramos en estos modos Y el mapa está listo.
-                if (::map.isInitialized) {
-                    actualizarMarcadoresDeVertices(
-                        viewModel.puntosPoligonoActual.value ?: emptyList()
-                    )
-                }
-                binding.fabOpcionesEdicion.visibility = View.VISIBLE
-                binding.fabEditar.visibility = View.GONE
-                if (modo == ModoEdicionPoligono.CREANDO) {
-                    binding.topText.text = "Creando nueva área..."
-                    desresaltarPoligonoExistenteSiHay() // Si empezamos a crear, deseleccionamos visualmente
-                } else { // EDITANDO
-                    binding.topText.text =
-                        "Editando Área ${viewModel.poligonoSeleccionadoId.value ?: ""}"
-                    // No necesariamente des-resaltamos aquí, ya que estamos editando el resaltado.
+        lifecycleScope.launch { // Necesitas un scope de corrutina
+            repeatOnLifecycle(Lifecycle.State.STARTED) { // Y repetir en el ciclo de vida apropiado
+                viewModel.dispositivoSeleccionado.collect { dispositivo ->
+                    if (dispositivo != null) { // Si hay un dispositivo seleccionado
+                        centrarMapa = false
+                        Log.d("MapsActivity", "Dispositivo seleccionado: ${dispositivo.id}. Centrar mapa desactivado.")
+                        // Aquí podrías añadir lógica adicional si es necesario cuando un dispositivo se selecciona,
+                        // como mover la cámara al dispositivo si 'centrarMapa' ya era false.
+                        // Sin embargo, si la única acción es desactivar el centrado automático, esto es suficiente.
+                    }
+                    // No necesitas un 'else' aquí si la única acción es con 'dispositivo != null'
+                    // Si necesitaras hacer algo cuando se deselecciona (dispositivo == null), lo añadirías aquí.
                 }
             }
         }
 
-        viewModel.puntosPoligonoActual.observe(this) { puntos ->
-            if (!::map.isInitialized) return@observe
 
-            // 1. Dibuja/actualiza el polígono en creación/edición (como ya lo haces)
-            poligonoEnCreacionVisual?.remove()
-            if (puntos.size >= 2 && (viewModel.modoEdicion.value == ModoEdicionPoligono.CREANDO || viewModel.modoEdicion.value == ModoEdicionPoligono.EDITANDO)) {
-                poligonoEnCreacionVisual = map.addPolygon(
+
+
+    }
+
+    private fun actualizarVisualizacionPoligonoYVertices() {
+
+        val modoActual = viewModel.modoEdicionPoligono.value
+        val puntosActuales = viewModel.puntosPoligonoActualParaDibujar.value // Obtiene los puntos más recientes
+
+        Log.d("MapsActivity_Draw", "actualizarVisualizacionPoligonoYVertices: Modo: $modoActual, Puntos: ${puntosActuales.joinToString { "(${it.latitude},${it.longitude})" }}")
+
+        poligonoEnCreacionVisual?.remove()
+        poligonoEnCreacionVisual = null
+        limpiarMarcadoresDeVerticesVisual()
+
+        if (modoActual == ModoEdicionPoligono.CREANDO || modoActual == ModoEdicionPoligono.EDITANDO) {
+            if (puntosActuales.size >= 2) {
+                Log.d("MapsActivity_Draw", "Dibujando polígono en creación visual con ${puntosActuales.size} puntos.")
+                poligonoEnCreacionVisual = googleMap.addPolygon(
                     PolygonOptions()
-                        .addAll(puntos)
+                        .addAll(puntosActuales)
                         .strokeColor(Color.GREEN)
                         .fillColor(0x2200FF00)
-                        .strokeWidth(3f)
+                        .strokeWidth(5f)
                         .zIndex(1f)
                 )
             } else {
-                poligonoEnCreacionVisual = null // No dibujar polígono si hay menos de 2 puntos
+                Log.d("MapsActivity_Draw", "No se dibuja polígono en creación, puntos insuficientes: ${puntosActuales.size}")
             }
 
-            // 2. Dibuja/actualiza los marcadores/círculos de los vértices
-            actualizarMarcadoresDeVertices(puntos)
-        }
-
-        viewModel.poligonoSeleccionadoId.observe(this) { idSeleccionado ->
-            desresaltarPoligonoExistenteSiHay() // Limpia el resaltado anterior
-
-            if (idSeleccionado != null) {
-                val polygonVisual = poligonosExistentesVisual[idSeleccionado]
-                polygonVisual?.let {
-                    it.strokeColor = Color.RED
-                    it.fillColor = 0x22FF0000 // Resaltar
-                    it.zIndex = 0.5f // Asegurar que otros polígonos no lo tapen al seleccionarlo
-                    idPoligonoResaltadoVisualmente = idSeleccionado
-                }
-                binding.fabEditar.text = "Editar Área $idSeleccionado"
-                binding.fabEditar.setIconResource(R.drawable.ic_edit)
-                Log.d("MapsActivity", "Polígono seleccionado: $idSeleccionado")
+            if (puntosActuales.isNotEmpty()) {
+                Log.d("MapsActivity_Draw", "Actualizando marcadores de vértices visuales con ${puntosActuales.size} puntos.")
+                actualizarMarcadoresDeVerticesVisual(puntosActuales, modoActual) // Esta función debe limpiar y redibujar marcadores
             } else {
-                // No hay polígono seleccionado, restaurar texto del FAB si no estamos creando
-                if (viewModel.modoEdicion.value == ModoEdicionPoligono.NINGUNO) {
-                    binding.fabEditar.text = "Agregar Área"
-                    binding.fabEditar.setIconResource(R.drawable.ic_add)
-                }
+                Log.d("MapsActivity_Draw", "No hay puntos para dibujar marcadores de vértices.")
             }
-        }
-
-
-    }
-
-    private fun actualizarMarcadoresDeVertices(puntos: List<LatLng>) {
-        Log.d("MapsActivity", "Actualizando marcadores de vértices: ${puntos.size} puntos")
-        if (!::map.isInitialized) return
-
-        limpiarMarcadoresDeVertices() // Limpia los marcadores antiguos
-
-        if (viewModel.modoEdicion.value == ModoEdicionPoligono.CREANDO || viewModel.modoEdicion.value == ModoEdicionPoligono.EDITANDO) {
-            puntos.forEachIndexed { index, punto ->
-                val markerOptions = MarkerOptions()
-                    .position(punto)
-                    .draggable(true)
-                    .anchor(0.5f, 0.5f) // Centrar el icono del marcador
-                    // Puedes usar un icono personalizado para el vértice:
-                    // .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_vertex_handle))
-                    // O crear un círculo pequeño mediante un BitmapDescriptor programáticamente:
-                    .icon(fenceIcon)
-
-                val marker = map.addMarker(markerOptions)
-                if (marker != null) {
-                    marker.tag = index // Almacenar el índice del punto en el tag del marcador
-                    marcadoresVertices.add(marker)
-                }
-            }
+        } else {
+            Log.d("MapsActivity_Draw", "No en modo CREANDO o EDITANDO. Limpiando visualizaciones.")
         }
     }
 
-    private fun limpiarMarcadoresDeVertices() {
-        marcadoresVertices.forEach { it.remove() }
-        marcadoresVertices.clear()
+    private fun actualizarMarcadoresDeVerticesVisual(puntos: List<LatLng>, modo: ModoEdicionPoligono) {
+        // La limpieza ya se hace en actualizarVisualizacionPoligonoYVertices con limpiarMarcadoresDeVerticesVisual()
+        // marcadoresVerticesActuales.forEach { it.remove() } <--- Asegúrate que esto está en limpiarMarcadoresDeVerticesVisual()
+        // marcadoresVerticesActuales.clear() <--- Y esto también
+
+        Log.d("MapsActivity_Draw", "actualizarMarcadoresDeVerticesVisual: Redibujando ${puntos.size} marcadores. Modo: $modo")
+        puntos.forEachIndexed { index, latLng ->
+            val markerOptions = MarkerOptions()
+                .position(latLng)
+                .draggable(modo == ModoEdicionPoligono.EDITANDO)
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
+                .anchor(0.5f, 0.5f)
+
+            val marker = googleMap.addMarker(markerOptions)
+
+            if (marker != null) {
+                val tagParaAsignar = "vertice_$index"
+                marker.tag = tagParaAsignar
+                marcadoresVerticesActuales.add(marker)
+                Log.d("MapsActivity_Draw", "Vértice $index creado en $latLng. Tag asignado: '$tagParaAsignar'")
+            } else {
+                Log.e("MapsActivity_Draw", "Error: googleMap.addMarker devolvió null para el vértice $index")
+            }
+        }
+        Log.d("MapsActivity_Draw", "Total de marcadores de vértices visuales ahora: ${marcadoresVerticesActuales.size}")
+    }
+
+    private fun limpiarMarcadoresDeVerticesVisual() {
+        Log.d("MapsActivity_Draw", "limpiarMarcadoresDeVerticesVisual: Limpiando ${marcadoresVerticesActuales.size} marcadores.")
+        marcadoresVerticesActuales.forEach { it.remove() }
+        marcadoresVerticesActuales.clear()
     }
 
     private fun desresaltarPoligonoExistenteSiHay() {
@@ -263,7 +292,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         binding.fabEditar.setOnClickListener {
-            val modoActual = viewModel.modoEdicion.value
+            val modoActual = viewModel.modoEdicionPoligono.value
             val idSeleccionado = viewModel.poligonoSeleccionadoId.value
 
             if (modoActual == ModoEdicionPoligono.NINGUNO) {
@@ -281,14 +310,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         binding.fabFinalizar.setOnClickListener {
             Log.d("MapsActivity", "Finalizando polígono actual")
-            viewModel.guardarPoligonoActual() // El ViewModel decidirá si es nuevo o existente
+            viewModel.guardarPoligonoEditadoActual()
+            actualizarUiPorModoEdicion(viewModel.modoEdicionPoligono.value, viewModel.poligonoSeleccionadoId.value)
         }
 
         binding.fabReiniciar.setOnClickListener {
-            if (viewModel.modoEdicion.value == ModoEdicionPoligono.CREANDO) {
+            if (viewModel.modoEdicionPoligono.value == ModoEdicionPoligono.CREANDO) {
                 // Si estamos creando un polígono, reiniciamos el proceso
-                viewModel.reiniciarPoligonoActual()
-            } else if (viewModel.modoEdicion.value == ModoEdicionPoligono.EDITANDO) {
+                viewModel.reiniciarPuntosPoligonoActual()
+            } else if (viewModel.modoEdicionPoligono.value == ModoEdicionPoligono.EDITANDO) {
                 AlertDialog.Builder(this)
                     .setTitle("Eliminar Área")
                     .setMessage("¿Deseas eliminar esta área?")
@@ -301,7 +331,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         binding.fabDeshacer.setOnClickListener {
-            viewModel.deshacerUltimoPunto()
+            viewModel.deshacerUltimoPuntoPoligono()
         }
 
         // (Opcional) Un botón de cancelar explícito si fabEditar no cumple esa función
@@ -310,18 +340,37 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         // }
     }
 
+    override fun onMapLoaded() {
+        isMapFullyLoaded.set(true)
+        Log.d("MapsActivitySplash", "onMapLoaded: ¡El mapa ha cargado completamente sus tiles! (isMapFullyLoaded: true)")
+        // La condición en setKeepOnScreenCondition ahora evaluará a 'false'
+        // y el splash screen se ocultará, revelando el mapa.
+
+        // Aquí puedes realizar otras acciones que dependan de que el mapa esté completamente visible.
+    }
+
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     @SuppressLint("PotentialBehaviorOverride")
-    override fun onMapReady(googleMap: GoogleMap) {
-        map = googleMap
-        //map.isMyLocationEnabled = true
-        map.uiSettings.isMyLocationButtonEnabled = true
-        map.uiSettings.isCompassEnabled = true
+    override fun onMapReady(map: GoogleMap) {
+        this@MapsActivity.googleMap = map
+        Log.d("MapsActivitySplash", "onMapReady: El mapa está listo.")
+        map.setOnMapLoadedCallback(this)
+        // El mapa está listo, podemos permitir que el splash se vaya.
+        isMapReadyForSplash.set(true)
+        Log.d("MapsActivitySplash", "onMapReady: isMapReadyForSplash SET TO TRUE. Splash debería irse pronto.")
+
+        googleMap.setMapStyle(
+            com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(
+                this,
+                R.raw.map_style
+            )
+        )
+
 
         val posicionDefault = LatLng(24.1426, -110.3128) // La Paz, BCS
-        googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(posicionDefault, 12f))
+        map.moveCamera(CameraUpdateFactory.newLatLngZoom(posicionDefault, 12f))
 
-        googleMap.setOnCameraMoveStartedListener(
+        map.setOnCameraMoveStartedListener(
             object : GoogleMap.OnCameraMoveStartedListener {
                 override fun onCameraMoveStarted(var1: Int) {
                     if (var1 == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
@@ -335,159 +384,315 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         )
 
-        googleMap.setOnMapClickListener { puntoClickeado ->
-            val modoActual = viewModel.modoEdicion.value
-            if (modoActual == ModoEdicionPoligono.CREANDO || modoActual == ModoEdicionPoligono.EDITANDO) {
-                viewModel.añadirPuntoAPoligonoActual(puntoClickeado)
-            } else if (idPoligonoResaltadoVisualmente != null) {
-                // Si hay un polígono resaltado y se hace clic en el mapa, lo des-resaltamos
-                viewModel.seleccionarPoligonoPorId(null) // Llama al VM para limpiar la selección lógica
+        map.setOnMapClickListener { latLng ->
+            // Si estamos en modo de creación o edición de polígonos, añadimos un punto.
+            if (viewModel.modoEdicionPoligono.value == ModoEdicionPoligono.CREANDO ||
+                viewModel.modoEdicionPoligono.value == ModoEdicionPoligono.EDITANDO) {
+                viewModel.agregarPuntoAPoligonoActual(latLng)
+            } else {
+                // Si NO estamos en modo edición de polígonos:
+                // 1. Deseleccionamos cualquier polígono que pudiera estar visualmente resaltado.
+                //    (viewModel.deseleccionarPoligono() se encargará de poner poligonoSeleccionadoId a null,
+                //     lo que debería hacer que el observador quite el resaltado)
+                viewModel.deseleccionarPoligono()
+
+                // 2. Deseleccionamos cualquier dispositivo que pudiera estar seleccionado.
+                viewModel.deseleccionarDispositivo()
+
+                Log.d("MapsActivity", "Clic en mapa (no en modo edición): Polígono y dispositivo deseleccionados.")
             }
-            // No hacer nada más si no estamos en modo edición ni des-seleccionando
         }
 
-        googleMap.setOnPolygonClickListener { polygonApi ->
-            val idPoligonoClickeado = polygonApi.tag as? Int
+        map.setOnPolygonClickListener { polygonApi ->
+            val idPoligonoClickeado = polygonApi.tag as? Int // Asegúrate que el tag de tus polígonos guardados es Int
             if (idPoligonoClickeado != null) {
+                if (viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO) {
+                    // Si estamos en medio de una creación/edición, quizás no queremos
+                    // permitir la selección de otro polígono, o podríamos querer cancelar la edición actual.
+                    // Por ahora, lo ignoraremos si estamos editando/creando.
+                    Log.d("MapsActivity", "Clic en polígono $idPoligonoClickeado ignorado (modo edición activo).")
+                    return@setOnPolygonClickListener
+                }
                 viewModel.seleccionarPoligonoPorId(idPoligonoClickeado)
+                viewModel.deseleccionarDispositivo() // También deselecciona dispositivo si seleccionas un polígono
+                Log.d("MapsActivity", "Polígono $idPoligonoClickeado seleccionado por clic directo.")
             }
         }
 
-        googleMap.setOnMarkerDragListener(object : GoogleMap.OnMarkerDragListener {
+        map.setOnMarkerDragListener(object : GoogleMap.OnMarkerDragListener {
             override fun onMarkerDragStart(marker: Marker) {
-                // Opcional: Cambiar apariencia del marcador/vértice al iniciar arrastre
-                val indice = marker.tag as? Int ?: return
-                if (viewModel.modoEdicion.value == ModoEdicionPoligono.CREANDO || viewModel.modoEdicion.value == ModoEdicionPoligono.EDITANDO) {
-                    marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW))
+                val tag = marker.tag as? String
+                if (tag != null && tag.startsWith("vertice_") && viewModel.modoEdicionPoligono.value == ModoEdicionPoligono.EDITANDO) {
+                    Log.d("MapsActivity_Drag", "onMarkerDragStart: Vértice $tag")
+                    // Opcional: Cambiar apariencia
                 }
             }
 
             override fun onMarkerDrag(marker: Marker) {
-                val indice = marker.tag as? Int ?: return
-                // Actualizar el polígono visual en tiempo real mientras se arrastra (opcional, puede ser costoso)
-                // viewModel.actualizarPuntoPoligono(indice, marker.position)
-                // Por ahora, solo actualizaremos al finalizar el arrastre.
+                if (viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.EDITANDO) return
 
-                // Si quieres que el polígono se actualice en tiempo real (puede parpadear o ser lento):
-                val puntosActuales = viewModel.puntosPoligonoActual.value?.toMutableList() ?: return
-                if (indice >= 0 && indice < puntosActuales.size) {
-                    puntosActuales[indice] = marker.position
-                    poligonoEnCreacionVisual?.points =
-                        puntosActuales // Actualiza el polígono visual directamente
+                Log.d("MapsActivity_Drag", "onMarkerDrag: Marker ID: ${marker.id}, Position: ${marker.position}, Tag: ${marker.tag}")
+
+                /*
+                val tag = marker.tag as? String
+                if (tag != null && tag.startsWith("vertice_")) {
+                    try {
+                        val indice = tag.substringAfter("vertice_").toInt()
+                        Log.d("MapsActivity_Drag", "onMarkerDrag: Vértice $tag (índice $indice) en ${marker.position}")
+                        } catch (e: NumberFormatException) {
+                        Log.e("MapsActivity_Drag", "Error al parsear índice en onMarkerDrag", e)
+                    }
+                } else {
+                    Log.d("MapsActivity_Drag", "onMarkerDrag: Tag no es de vértice o es nulo: $tag")
                 }
+
+                 */
             }
 
             override fun onMarkerDragEnd(marker: Marker) {
-                val indice = marker.tag as? Int ?: return
-                viewModel.actualizarPuntoPoligono(indice, marker.position)
-                // El LiveData se actualizará y el observador en `puntosPoligonoActual`
-                // se encargará de redibujar todo (polígono y marcadores).
+                if (viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.EDITANDO) return
+
+                val tag = marker.tag as? String
+                if (tag != null && tag.startsWith("vertice_")) {
+                    try {
+                        val indice = tag.substringAfter("vertice_").toInt()
+                        Log.i("MapsActivity_Drag", "onMarkerDragEnd: Vértice $tag (índice $indice) finalizado en ${marker.position}. Estado debería estar actualizado.")
+                        // El estado ya se actualizó en onMarkerDrag si usas el Enfoque 1.
+                        // Aquí podrías tener lógica como "auto-guardar" si fuera necesario, o simplemente loguear.
+                        viewModel.actualizarPuntoPoligonoEnEdicion(indice, marker.position)
+                    } catch (e: NumberFormatException) {
+                        Log.e("MapsActivity_Drag", "Error al parsear índice en onMarkerDragEnd", e)
+                    }
+                }
             }
         })
 
-        googleMap.setOnMarkerClickListener { marker ->
-            val indiceVertice = marker.tag as? Int // Verifica si es un marcador de vértice
-            if (viewModel.modoEdicion.value == ModoEdicionPoligono.CREANDO || viewModel.modoEdicion.value == ModoEdicionPoligono.EDITANDO) {
-                if (indiceVertice != null) {
-                    // Lógica para eliminar el vértice al hacer clic en él
-                    // Mostrar un diálogo de confirmación antes de eliminar sería una buena idea
-                    AlertDialog.Builder(this)
-                        .setTitle("Eliminar Vértice")
-                        .setMessage("¿Deseas eliminar este vértice?")
-                        .setPositiveButton("Eliminar") { _, _ ->
-                            viewModel.eliminarPuntoPoligono(indiceVertice)
-                        }
-                        .setNegativeButton("Cancelar", null)
-                        .show()
-                    return@setOnMarkerClickListener true // Evento consumido
-                }
-            }
-
+        map.setOnMarkerClickListener { marker ->
             // Si no es un marcador de vértice, o no estamos en modo edición,
             // dejar que el listener original de marcadores (para dispositivos) maneje el clic.
-            val dispositivo =
-                viewModel.markerDispositivoMap[marker] // Revisa si esta lógica aún aplica o se sobrescribe
+            // Si es un marcador de dispositivo
+            val dispositivo = viewModel.markerDispositivoMap[marker] // Asumiendo que aún usas este mapa
             if (dispositivo != null) {
+                if (viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO) {
+                    Log.d("MapsActivity", "Clic en marcador de dispositivo ignorado (modo edición activo).")
+                    return@setOnMarkerClickListener true // Consume el evento
+                }
                 viewModel.seleccionarDispositivo(dispositivo)
-                mostrarInfoDispositivo(dispositivo)
-                centrarDispositivoEnMapa(dispositivo)
+                viewModel.deseleccionarPoligono() // Deselecciona polígono si seleccionas un dispositivo
+                mostrarInfoDispositivo(dispositivo) // O la lógica para mostrar el BottomSheet del dispositivo
+                centrarDispositivoEnMapa(dispositivo) // Opcional
+                Log.d("MapsActivity", "Dispositivo ${dispositivo.id} seleccionado por clic en marcador.")
                 return@setOnMarkerClickListener true // Evento consumido
             }
 
-            return@setOnMarkerClickListener false // Dejar que otros listeners manejen si no es nuestro caso
+            // Si es un marcador de vértice durante la edición (tu lógica existente)
+            val tagVertice = marker.tag as? String
+            if (tagVertice != null && tagVertice.startsWith("vertice_") &&
+                (viewModel.modoEdicionPoligono.value == ModoEdicionPoligono.CREANDO || viewModel.modoEdicionPoligono.value == ModoEdicionPoligono.EDITANDO)) {
+                // Lógica para eliminar el vértice al hacer clic en él
+                AlertDialog.Builder(this)
+                    .setTitle("Eliminar Vértice")
+                    .setMessage("¿Deseas eliminar este vértice?")
+                    .setPositiveButton("Eliminar") { _, _ ->
+                        try {
+                            val indice = tagVertice.substringAfter("vertice_").toInt()
+                            viewModel.eliminarPuntoPoligono(indice)
+                        } catch (e: NumberFormatException) {
+                            Log.e("MapsActivity", "Error al parsear índice del marcador de vértice para eliminar", e)
+                        }
+                    }
+                    .setNegativeButton("Cancelar", null)
+                    .show()
+                return@setOnMarkerClickListener true // Evento consumido
+            }
+
+
+            return@setOnMarkerClickListener false // No consumido, deja que otros listeners actúen si es necesario
         }
 
-        viewModel.poligonos.observe(this) { listaPoligonosGuardados ->
-            // Limpia polígonos viejos del mapa (una forma simple, podría ser más eficiente)
-            poligonosExistentesVisual.values.forEach { it.remove() }
-            poligonosExistentesVisual.clear()
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                // Colector para Polígonos
+                launch {
+                    viewModel.poligonos.collect { listaPoligonosGuardados ->
+                        // Lógica para dibujar polígonos...
+                        Log.d("MapsActivity", "Polígonos actualizados: ${listaPoligonosGuardados.size}")
+                        actualizarPoligonosEnMapa(listaPoligonosGuardados)
+                    }
+                }
 
-            listaPoligonosGuardados.forEach { poligonoData ->
-                val options = PolygonOptions()
-                    .addAll(poligonoData.puntos)
-                    .strokeColor(Color.BLUE)
-                    .fillColor(0x220000FF)
-                    .strokeWidth(2f)
-                    .clickable(true)
+                // Colector para Dispositivos
+                launch {
+                    viewModel.dispositivos.collect { listaDispositivos ->
+                        // Lógica para dibujar dispositivos...
+                        Log.d("MapsActivity", "Dispositivos actualizados: ${listaDispositivos.size}")
+                        actualizarDispositivosEnMapa(listaDispositivos)
+                    }
+                }
 
-                val mapPolygon = map.addPolygon(options)
-                mapPolygon.tag = poligonoData.id // ¡Importante para el OnPolygonClickListener!
-                poligonosExistentesVisual[poligonoData.id] = mapPolygon
+                launch {
+                    viewModel.poligonoSeleccionadoId.collect { idSeleccionado ->
+                        if (!::googleMap.isInitialized) return@collect // Asegúrate de que el mapa está listo
 
-                // Si este polígono es el que está seleccionado en el ViewModel, resaltarlo
-                if (poligonoData.id == viewModel.poligonoSeleccionadoId.value) {
-                    mapPolygon.strokeColor = Color.RED
-                    mapPolygon.fillColor = 0x22FF0000
-                    idPoligonoResaltadoVisualmente = poligonoData.id
+                        desresaltarPoligonoExistenteSiHay() // Limpia el resaltado anterior
+
+                        if (idSeleccionado != null) {
+                            val polygonVisual = poligonosExistentesVisual[idSeleccionado]
+                            polygonVisual?.let {
+                                it.strokeColor = Color.RED
+                                it.fillColor = 0x22FF0000 // Resaltar
+                                it.zIndex = 0.5f // Asegurar que otros polígonos no lo tapen al seleccionarlo
+                                idPoligonoResaltadoVisualmente = idSeleccionado // Actualiza tu variable de seguimiento
+                            }
+                            binding.fabEditar.text = getString(R.string.fab_edit, idSeleccionado.toString()) // Usa string resources
+                            binding.fabEditar.setIconResource(R.drawable.ic_edit)
+                            Log.d("MapsActivity", "Polígono seleccionado (StateFlow): $idSeleccionado")
+                        } else {
+                            // No hay polígono seleccionado
+                            // Restaurar texto del FAB si no estamos en ningún modo de edición
+                            // Necesitas observar el modo de edición para esta lógica
+                            // if (viewModel.modoEdicionPoligono.value == ModoEdicionPoligono.NINGUNO) {
+                            //    binding.fabEditar.text = getString(R.string.agregar_area)
+                            //    binding.fabEditar.setIconResource(R.drawable.ic_add)
+                            // }
+                            // Esta parte es un poco más compleja porque depende de OTRO StateFlow (modoEdicionPoligono)
+                            // Ver la nota abajo.
+                        }
+                    }
+                }
+
+                // Colector para modoEdicionPoligono (necesario para la lógica del FAB cuando no hay selección)
+                launch {
+                    viewModel.modoEdicionPoligono.collect { modo ->
+                        // Actualiza el FAB y otros elementos de la UI basados en el modo
+                        actualizarUiPorModoEdicion(modo, viewModel.poligonoSeleccionadoId.value)
+                    }
+                }
+
+                // Colector para puntosPoligonoActualParaDibujar (si la Activity es responsable de dibujarlos)
+                lifecycleScope.launch {
+                    repeatOnLifecycle(Lifecycle.State.STARTED) {
+                        // Asegúrate que usas el StateFlow correcto que expone PoligonoEditorManager.puntosPoligonoActual
+                        viewModel.puntosPoligonoActualParaDibujar.collect { puntos -> // <-- PUNTO CRÍTICO 4
+                            Log.d("MapsActivity_Observer", "Colector de puntosPoligonoActualParaDibujar activado. Cantidad de puntos: ${puntos.size}. Modo actual: ${viewModel.modoEdicionPoligono.value}")
+                            // Esta función es la responsable de redibujar todo
+                            actualizarVisualizacionPoligonoYVertices()
+                            //actualizarVisualizacionPoligonoEnEdicion(puntos, viewModel.modoEdicionPoligono.value)
+                        }
+                    }
                 }
             }
         }
 
         viewModel.verificarEstadoDispositivos()
+    }
 
-        viewModel.dispositivos.observe(this) { lista ->
-            if (!::map.isInitialized) {
-                return@observe
-            }
-            map.clear()
-            for (dispositivo in lista) {
-                val icon = if (dispositivo.activo) cowIcon
-                else if (!dispositivo.dentroDelArea)
-                    cowIconWarning
-                else cowIconDisabled
-                val marcador = map.addMarker(
-                    MarkerOptions()
-                        .position(LatLng(dispositivo.latitud, dispositivo.longitud))
-                        .title(dispositivo.nombre)
-                        .snippet(dispositivo.descripcion ?: "")
-                        .icon(icon)
-                )
-                if (marcador != null) {
-                    viewModel.markerDispositivoMap[marcador] = dispositivo
+    private fun actualizarUiPorModoEdicion(modo: ModoEdicionPoligono, idPoligonoSeleccionado: Int?) {
+        if (!::googleMap.isInitialized) return
+
+        when (modo) {
+            ModoEdicionPoligono.NINGUNO -> {
+                limpiarMarcadoresDeVerticesVisual() // Desde tu código original
+                poligonoEnCreacionVisual?.remove() // Desde tu código original
+                poligonoEnCreacionVisual = null // Desde tu código original
+
+                if (idPoligonoSeleccionado != null) {
+                    binding.fabEditar.text = getString(R.string.editar_area_id, idPoligonoSeleccionado.toString())
+                    binding.fabEditar.setIconResource(R.drawable.ic_edit)
+                } else {
+                    binding.fabEditar.text = getString(R.string.agregar_area)
+                    binding.fabEditar.setIconResource(R.drawable.ic_add)
                 }
+                binding.fabOpcionesEdicion.visibility = View.GONE
+                binding.fabEditar.visibility = View.VISIBLE
+                // También actualiza topText si es necesario
+                binding.topText.text = "Selecciona un dispositivo o un área para editar"
             }
-            Log.d("MapsActivity", "Dispositivos cargados: ${lista.size}")
-            Log.d("MapsActivity", "Dispositivos fuera del área: ${lista.count { !it.dentroDelArea }}")
-            binding.textTotalDispositivos.text = getString(R.string.dispositivos_total, lista.size)
-            binding.textDispositivosFueraRango.text = getString(
-                R.string.dispositivos_fuera_rango,
-                lista.count { !it.dentroDelArea }
-            )
-            binding.textDispositivosActivos.text = getString(
-                R.string.dispositivos_activos,
-                lista.count { it.activo }
-            )
+            ModoEdicionPoligono.CREANDO -> {
+                actualizarMarcadoresDeVerticesVisual(viewModel.puntosPoligonoActualParaDibujar.value, modo)
+                binding.fabOpcionesEdicion.visibility = View.VISIBLE
+                binding.fabEditar.visibility = View.GONE
+                binding.topText.text = getString(R.string.creando_nueva_area) // Usa string resources
+                desresaltarPoligonoExistenteSiHay() // Desde tu código original
+            }
+            ModoEdicionPoligono.EDITANDO -> {
+                actualizarMarcadoresDeVerticesVisual(
+                    viewModel.puntosPoligonoActualParaDibujar.value, modo
+                )
+                binding.fabOpcionesEdicion.visibility = View.VISIBLE
+                binding.fabEditar.visibility = View.GONE
+                binding.topText.text = getString(R.string.editando_area_id, viewModel.poligonoSeleccionadoId.value?.toString() ?: "")
+            }
         }
+    }
+
+    private fun actualizarPoligonosEnMapa(listaPoligonosGuardados: List<Poligono>) {
+        if (!::googleMap.isInitialized) return
+        poligonosExistentesVisual.values.forEach { it.remove() }
+        poligonosExistentesVisual.clear()
+
+        listaPoligonosGuardados.forEach { poligonoData ->
+            val options = PolygonOptions()
+                .addAll(poligonoData.puntos)
+                .strokeColor(Color.BLUE)
+                .fillColor(0x220000FF)
+                .strokeWidth(2f)
+                .clickable(true)
+            val mapPolygon = googleMap.addPolygon(options)
+            mapPolygon.tag = poligonoData.id
+            poligonosExistentesVisual[poligonoData.id] = mapPolygon
+            if (poligonoData.id == viewModel.poligonoSeleccionadoId.value) {
+                mapPolygon.strokeColor = Color.RED
+                mapPolygon.fillColor = 0x22FF0000
+                idPoligonoResaltadoVisualmente = poligonoData.id
+            }
+        }
+    }
+
+    private fun actualizarDispositivosEnMapa(listaDeDispositivos: List<Dispositivo>) {
+        if (!::googleMap.isInitialized) return
+
+        marcadoresDeDispositivosActuales.forEach { it.remove() }
+        marcadoresDeDispositivosActuales.clear()
+        viewModel.markerDispositivoMap.clear()
+
+        listaDeDispositivos.forEach { dispositivo ->
+            // ... tu lógica para crear MarkerOptions y añadir al mapa ...
+            val icon = if (dispositivo.activo) cowIcon
+            else if (!dispositivo.dentroDelArea)
+                cowIconWarning
+            else cowIconDisabled
+            val markerOptions = MarkerOptions()
+                .position(LatLng(dispositivo.latitud, dispositivo.longitud))
+                .title(dispositivo.nombre)
+                .snippet(dispositivo.descripcion ?: "")
+                .icon(icon)
+            val marcador = googleMap.addMarker(markerOptions)
+            if (marcador != null) {
+                viewModel.markerDispositivoMap[marcador] = dispositivo
+                marcadoresDeDispositivosActuales.add(marcador)
+            }
+        }
+        // Actualizar contadores de UI
+        binding.textTotalDispositivos.text = getString(R.string.dispositivos_total, listaDeDispositivos.size)
+        binding.textDispositivosFueraRango.text = getString(
+            R.string.dispositivos_fuera_rango,
+            listaDeDispositivos.count { !it.dentroDelArea }
+        )
+        binding.textDispositivosActivos.text = getString(
+            R.string.dispositivos_activos,
+            listaDeDispositivos.count { it.activo }
+        )
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        viewModel.detenerActualizacionUbicacion()
     }
 
     private fun actualizarMarcadorUbicacionActual(latLng: LatLng) {
+        if (!::googleMap.isInitialized) return
         if (marcadorUbicacionActual == null) {
-            marcadorUbicacionActual = map.addMarker(
+            marcadorUbicacionActual = googleMap.addMarker(
                 MarkerOptions()
                     .position(latLng)
                     .title("Tu ubicación")
@@ -542,22 +747,20 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun centrarMapa() {
-        if (!centrarMapa || modoEdicion)
-            return
-        val bounds = viewModel.obtenerBoundsParaMapa() ?: return
+        if (!centrarMapa || viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO) return
+            val bounds = viewModel.obtenerBoundsParaMapa() ?: return
 
-        val padding = 150
-        val cu = CameraUpdateFactory.newLatLngBounds(bounds, padding)
-        map.animateCamera(cu, object : GoogleMap.CancelableCallback {
-            override fun onFinish() {
-                binding.btnCentrar.visibility = View.GONE
-                centrarMapa = false
-            }
+            val padding = 150
+            val cu = CameraUpdateFactory.newLatLngBounds(bounds, padding)
+            googleMap.animateCamera(cu, object : GoogleMap.CancelableCallback {
+                override fun onFinish() {
+                    binding.btnCentrar.visibility = View.GONE
+                }
 
-            override fun onCancel() {
-                Log.d("MapsActivity", "Centrado de mapa cancelado")
-            }
-        })
+                override fun onCancel() {
+                    Log.d("MapsActivity", "Centrado de mapa cancelado")
+                }
+            })
     }
 
     private fun centrarDispositivoEnMapa(dispositivo: Dispositivo) {
@@ -565,7 +768,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         val padding = 150
         val cu = CameraUpdateFactory.newLatLngBounds(bounds, padding)
-        map.animateCamera(cu)
+        googleMap.animateCamera(cu)
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -578,12 +781,29 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     override fun onResume() {
         super.onResume()
+        solicitarPermisosDeUbicacionEIniciarActualizaciones()
         handler.post(checkDispositivosRunnable)
+    }
+
+    private fun solicitarPermisosDeUbicacionEIniciarActualizaciones() {
+        if (LocationProviderImpl.PermissionUtils.hasLocationPermissions(this)) {
+            Log.d("MapsActivity", "Ya se tienen permisos de ubicación.")
+            viewModel.iniciarActualizacionesDeUbicacionUsuario()
+        } else {
+            Log.d("MapsActivity", "Solicitando permisos de ubicación.")
+            locationPermissionRequest.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
     }
 
     override fun onPause() {
         super.onPause()
         handler.removeCallbacks(checkDispositivosRunnable)
+        viewModel.detenerActualizacionesDeUbicacionUsuario()
     }
 
 

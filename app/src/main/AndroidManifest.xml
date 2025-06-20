@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
+        android:name=".PecusTrack"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -15,23 +16,28 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.PecusTrack"
         tools:targetApi="31"
-        tools:ignore="GoogleAppIndexingWarning"
-        tools:replace="android:allowBackup, android:icon, android:label, android:roundIcon, android:supportsRtl, android:theme">
+        tools:ignore="GoogleAppIndexingWarning">
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="${MAPS_API_KEY}" />
 
         <activity
+            android:name=".ui.view.SplashView"
+            android:exported="true"
+            android:screenOrientation="portrait"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:theme="@style/Theme.PecusTrack.SplashScreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".ui.view.MapsActivity"
             android:exported="true"
             android:screenOrientation="portrait">
-
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
 
             </activity>
         <activity
