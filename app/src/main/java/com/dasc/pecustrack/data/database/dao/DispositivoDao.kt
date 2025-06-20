@@ -34,4 +34,7 @@ interface DispositivoDao {
 
     @Query("SELECT * FROM dispositivos WHERE id = :id")
     fun getDispositivoById(id: Int): Flow<Dispositivo?>
+
+    @Query("SELECT * FROM dispositivos WHERE id = :id")
+    suspend fun getDispositivoByIdOnce(id: Int): Dispositivo?
 }

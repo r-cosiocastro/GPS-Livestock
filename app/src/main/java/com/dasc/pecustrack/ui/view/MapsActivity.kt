@@ -42,6 +42,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.dasc.pecustrack.data.model.Poligono
 import com.dasc.pecustrack.location.LocationProviderImpl
 import com.dasc.pecustrack.ui.viewmodel.ModoEdicionPoligono
+import com.dasc.pecustrack.utils.NotificationHelper
 import com.google.android.gms.maps.model.Polygon
 import com.google.android.gms.maps.model.PolygonOptions
 import dagger.hilt.android.AndroidEntryPoint
@@ -113,6 +114,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         super.onCreate(savedInstanceState)
         binding = ActivityMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        val not = NotificationHelper.createBasicNotification(
+            this,
+            NotificationHelper.BLUETOOTH_SERVICE_CHANNEL_ID,
+            "Servicio Bluetooth",
+            "El servicio Bluetooth está activo"
+        )
+
+        NotificationHelper.showNotification(this, NotificationHelper.BLUETOOTH_SERVICE_NOTIFICATION_ID, not)
 
         Log.d("MapsActivitySplash", "onCreate: Splash screen instalado.")
 

@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.dasc.pecustrack.data.database.AppDatabase
 import com.dasc.pecustrack.data.database.dao.DispositivoDao
 import com.dasc.pecustrack.data.database.dao.PoligonoDao
+import com.dasc.pecustrack.utils.NotificationHelper
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -35,6 +36,14 @@ object AppModule {
     @Provides
     fun providePoligonoDao(appDatabase: AppDatabase): PoligonoDao {
         return appDatabase.poligonoDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideNotificationHelper(
+        @ApplicationContext context: Context
+    ): NotificationHelper {
+        return NotificationHelper
     }
 
 }

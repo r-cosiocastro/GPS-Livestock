@@ -23,6 +23,10 @@ class DispositivoRepositoryImpl @Inject constructor(
         return dispositivoDao.getDispositivoById(id)
     }
 
+    override suspend fun getDispositivoByIdOnce(id: Int): Dispositivo? {
+        return dispositivoDao.getDispositivoByIdOnce(id)
+    }
+
     override suspend fun insertDispositivo(dispositivo: Dispositivo) {
         return dispositivoDao.insertDispositivo(dispositivo)
     }

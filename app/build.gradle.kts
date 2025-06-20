@@ -73,6 +73,7 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     implementation(libs.hilt.android)
+    implementation(libs.androidx.bluetooth)
     ksp(libs.hilt.compiler)
     ksp(libs.room.ksp)
     implementation(libs.lifecycle.viewmodel.ktx)

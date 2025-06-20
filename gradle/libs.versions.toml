@@ -19,8 +19,9 @@ activity = "1.10.1"
 constraintlayout = "2.2.1"
 playservices-maps = "19.2.0"
 playservices-location = "21.3.0"
-maps-utils = "3.8.0"
+maps-utils = "3.14.0"
 googleAndroidLibrariesMapsplatformSecretsGradlePlugin = "2.0.1"
+bluetooth = "1.0.0-alpha02"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -39,14 +40,15 @@ room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 room-ksp = { module = "androidx.room:room-compiler", version.ref = "room" }
-hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
-hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }
+hilt-android = { module = "com.google.dagger:hilt-android", version = "2.56.2" }
+hilt-compiler = { module = "com.google.dagger:hilt-compiler", version = "2.56.2" }
 hilt-navigation = { module = "androidx.hilt:hilt-navigation-fragment", version.ref = "hilt_navigation" }
 lifecycle-viewmodel-ktx = "androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.1"
 fragment-ktx = "androidx.fragment:fragment-ktx:1.8.8"
 lottie = { group = "com.airbnb.android", name = "lottie", version.ref = "lottie" }
 splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splash" }
 coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
+androidx-bluetooth = { group = "androidx.bluetooth", name = "bluetooth", version.ref = "bluetooth" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -12,4 +12,9 @@
     <string name="agregar_area">Agregar Área</string>
     <string name="creando_nueva_area">Creando nueva área de pastoreo</string>
     <string name="editando_area_id">Editando Área %1$s</string>
+    <string name="bluetooth_service_conectado">Dispositivo bluetooth conectado</string>
+    <string name="bluetooth_service_channel_name">ServicioBluetooth</string>
+    <string name="bluetooth_service_channel_description">Notificaciones del servicio bluetooth</string>
+    <string name="data_update_channel_name">ActualizacionesDispositivos</string>
+    <string name="data_update_channel_description">Notificaciones sobre nuevos datos de dispositivos</string>
 </resources>
