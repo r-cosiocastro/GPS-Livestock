@@ -19,10 +19,21 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
+import androidx.core.graphics.get
+import androidx.core.graphics.set
+import androidx.core.splashscreen.SplashScreen
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.dasc.pecustrack.R
 import com.dasc.pecustrack.data.model.Dispositivo
+import com.dasc.pecustrack.data.model.Poligono
 import com.dasc.pecustrack.databinding.ActivityMapsBinding
+import com.dasc.pecustrack.location.LocationProviderImpl
 import com.dasc.pecustrack.ui.viewmodel.MapsViewModel
+import com.dasc.pecustrack.ui.viewmodel.ModoEdicionPoligono
+import com.dasc.pecustrack.utils.NotificationHelper
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -32,17 +43,6 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
-import androidx.core.graphics.get
-import androidx.core.graphics.set
-import androidx.core.splashscreen.SplashScreen
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
-import com.dasc.pecustrack.data.model.Poligono
-import com.dasc.pecustrack.location.LocationProviderImpl
-import com.dasc.pecustrack.ui.viewmodel.ModoEdicionPoligono
-import com.dasc.pecustrack.utils.NotificationHelper
 import com.google.android.gms.maps.model.Polygon
 import com.google.android.gms.maps.model.PolygonOptions
 import dagger.hilt.android.AndroidEntryPoint
@@ -692,10 +692,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
             R.string.dispositivos_activos,
             listaDeDispositivos.count { it.activo }
         )
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
     }
 
     private fun actualizarMarcadorUbicacionActual(latLng: LatLng) {

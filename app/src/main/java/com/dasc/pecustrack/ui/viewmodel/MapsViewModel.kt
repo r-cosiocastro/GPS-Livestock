@@ -4,7 +4,6 @@ import android.content.Context
 import android.location.Location
 import android.util.Log
 import android.widget.Toast
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -201,7 +200,7 @@ class MapsViewModel @Inject constructor(
                 guardarPoligonoUseCase(id, puntos)
                 Log.d("MapsViewModel", "Polígono guardado/actualizado. ID: $id, Puntos: ${puntos.size}")
                 poligonoEditorManager.cancelarCreacionEdicionPoligono() // Sale del modo edición
-                _poligonoSeleccionadoId.value = null; // Opcional: deseleccionar después de guardar
+                _poligonoSeleccionadoId.value = null // Opcional: deseleccionar después de guardar
                 // La lista de polígonos se actualizará automáticamente si observas el Flow del repositorio.
             } catch (e: Exception) {
                 Log.e("MapsViewModel", "Error al guardar el polígono", e)

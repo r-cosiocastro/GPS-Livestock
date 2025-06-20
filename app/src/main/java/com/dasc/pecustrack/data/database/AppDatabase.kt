@@ -55,7 +55,7 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                     // Aquí puedes añadir estrategias de migración si es necesario
                     // .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-                    .fallbackToDestructiveMigration() // Opción si no quieres manejar migraciones complejas (borra y recrea la DB)
+                    .fallbackToDestructiveMigration(false) // Opción si no quieres manejar migraciones complejas (borra y recrea la DB)
                     .build()
                 INSTANCE = instance
                 // Devuelve la instancia

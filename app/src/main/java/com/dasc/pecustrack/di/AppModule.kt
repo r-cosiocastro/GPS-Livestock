@@ -24,7 +24,7 @@ object AppModule {
             appContext,
             AppDatabase::class.java,
             "pecus_track_db"
-        ).fallbackToDestructiveMigration()
+        ).fallbackToDestructiveMigration(false)
             .build()
     }
 

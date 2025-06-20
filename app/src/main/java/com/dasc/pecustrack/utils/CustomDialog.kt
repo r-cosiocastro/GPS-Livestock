@@ -79,7 +79,7 @@ class CustomAlertDialog(private val context: Context) {
     }
 
     fun show() {
-        dialogBuilder.create();
+        dialogBuilder.create()
         dialogBuilder.setTitle(title)
             .setMessage(message)
             .setPositiveButton(positiveButtonLabel, positiveButtonListener)
@@ -108,7 +108,7 @@ class CustomAlertDialog(private val context: Context) {
 
             val handler = Handler(Looper.getMainLooper())
             //dialog.getButton(Dialog.BUTTON_POSITIVE).setBackgroundColor(context.resources.getColor(R.color.md_theme_light_onBackground))
-            val title = title;
+            val title = title
             val runnable = object : Runnable {
                 var seconds = countDownSeconds
                 override fun run() {
