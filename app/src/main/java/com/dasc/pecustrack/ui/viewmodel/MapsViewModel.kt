@@ -258,10 +258,10 @@ class MapsViewModel @Inject constructor(
 
     fun insertarDispositivosEjemplo() {
         val lista = listOf(
-            Dispositivo(1, "Vaquita mú", "Vaca con manchas negras", 24.102455, -110.316152, 1750271280, System.currentTimeMillis(), true),
+            Dispositivo(1, "Vaquita mú", "Vaca con manchas negras", 24.102455, -110.316152, 1, 1750271280, System.currentTimeMillis(), true),
             //Dispositivo(2, "Vaquita lechera", "Da mucha leche", 24.1051774, -110.3698646, 1750271280, System.currentTimeMillis(), true),
-            Dispositivo(3, "Vaquita del aramburo", "Casi nos la quita el Chedraui™️", 24.1108454, -110.3129548, 1750271280, 1750271280, false),
-            Dispositivo(4, "Vaquita de la calle", "No es de nadie, pero es de todos", 24.1487217, -110.2767691, 1750271280, System.currentTimeMillis(), true)
+            Dispositivo(3, "Vaquita del aramburo", "Casi nos la quita el Chedraui™️", 24.1108454, -110.3129548, 2, 1750271280, 1750271280, false),
+            Dispositivo(4, "Vaquita de la calle", "No es de nadie, pero es de todos", 24.1487217, -110.2767691, 3, 1750271280, System.currentTimeMillis(), true)
         )
         viewModelScope.launch {
             dispositivoRepository.insertAllDispositivos(lista)

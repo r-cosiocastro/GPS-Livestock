@@ -11,7 +11,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
-import android.widget.Toast
 import kotlinx.coroutines.launch
 import androidx.core.net.toUri
 import androidx.fragment.app.activityViewModels
@@ -24,8 +23,7 @@ import com.dasc.pecustrack.ui.viewmodel.MapsViewModel
 import com.dasc.pecustrack.utils.StringFormatUtils.formatearTiempoConexion
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
-class DispositivoBottomSheetDialog : BottomSheetDialogFragment(){
-    private lateinit var dispositivo: Dispositivo
+class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
     private val viewModel: MapsViewModel by activityViewModels()
 
     override fun onCreateView(
@@ -48,7 +46,7 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment(){
             textDistancia.text = "Distancia: $texto"
         }
 
-        viewLifecycleOwner.lifecycleScope.launch { // <--- ESTA ES LA LÍNEA CLAVE
+        viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.dispositivoSeleccionado.collect { dispositivo ->
                     if (dispositivo != null) {
@@ -59,24 +57,28 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment(){
                         btnEditar.setOnClickListener {
                             val editSheet = EditDispositivoBottomSheet.newInstance(dispositivo)
                             editSheet.show(parentFragmentManager, EditDispositivoBottomSheet.TAG)
-                            Log.d("DispositivoBottomSheetDialog", "Edit button clicked for device: ${dispositivo.nombre}")
+                            Log.d(
+                                "DispositivoBottomSheetDialog",
+                                "Edit button clicked for device: ${dispositivo.nombre}"
+                            )
+                        }
+
+                        btnNavegar.setOnClickListener {
+                            val uri =
+                                "google.navigation:q=${dispositivo.latitud},${dispositivo.longitud}".toUri()
+                            val intent = Intent(Intent.ACTION_VIEW, uri)
+                            intent.setPackage("com.google.android.apps.maps")
+                            startActivity(intent)
                         }
                     } else {
                         if (isAdded && dialog?.isShowing == true) {
                             dismissAllowingStateLoss()
                         }
                     }
+
+
                 }
             }
-        }
-
-
-
-        btnNavegar.setOnClickListener {
-            val uri = "google.navigation:q=${dispositivo.latitud},${dispositivo.longitud}".toUri()
-            val intent = Intent(Intent.ACTION_VIEW, uri)
-            intent.setPackage("com.google.android.apps.maps")
-            startActivity(intent)
         }
     }
 
@@ -108,8 +110,19 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment(){
         } else {
             "Desconocido"
         }
-        view?.findViewById<TextView>(R.id.textUltConexion)?.text = resources.getString(R.string.ultima_conexion, textoConexion)
-        view?.findViewById<TextView>(R.id.textEstado)?.text = resources.getString(R.string.estado_del_dispositivo, textoEstado)
+        view?.findViewById<TextView>(R.id.textUltConexion)?.text =
+            resources.getString(R.string.ultima_conexion, textoConexion)
+        view?.findViewById<TextView>(R.id.textEstado)?.text =
+            resources.getString(R.string.estado_del_dispositivo, textoEstado)
+        view?.findViewById<TextView>(R.id.textEstado)?.setTextColor(
+            when {
+                dispositivo == null -> resources.getColor(R.color.colorEstadoDesconocido, null)
+                !dispositivo.activo && !dispositivo.dentroDelArea -> resources.getColor(R.color.colorEstadoInactivoFueraArea, null)
+                !dispositivo.activo -> resources.getColor(R.color.colorEstadoInactivo, null)
+                !dispositivo.dentroDelArea -> resources.getColor(R.color.colorEstadoFueraArea, null)
+                else -> resources.getColor(R.color.colorEstadoActivoDentroArea, null)
+            }
+        )
     }
 
     private val handler = Handler(Looper.getMainLooper())

@@ -13,6 +13,7 @@ data class Dispositivo(
     val descripcion: String? = null,
     val latitud: Double,
     val longitud: Double,
+    val tipoAnimal: Int, // 0: Vaca, 1: Caballo, 2: Oveja, 3: Cabra, 4: Cerdo
     val primeraConexion: Long? = null,
     val ultimaConexion: Long? = null,
     val activo: Boolean = true,

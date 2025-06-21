@@ -5,8 +5,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.fragment.app.activityViewModels
+import com.dasc.pecustrack.R
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.dasc.pecustrack.data.model.Dispositivo // Asegúrate que la ruta sea correcta
 import com.dasc.pecustrack.databinding.BottomSheetEditDispositivoBinding // ViewBinding
@@ -36,6 +39,18 @@ class EditDispositivoBottomSheet : BottomSheetDialogFragment() {
         }
     }
 
+    private fun setupTipoAnimalSpinner() {
+        val tiposAnimalNombres = resources.getStringArray(R.array.tipos_animal_nombres)
+
+        val adapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_item,
+            tiposAnimalNombres
+        )
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spinnerTipoAnimal.adapter = adapter
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -54,12 +69,16 @@ class EditDispositivoBottomSheet : BottomSheetDialogFragment() {
             return
         }
 
+        setupTipoAnimalSpinner()
+
         dispositivoActual?.let { disp ->
             binding.editTextNombre.setText(disp.nombre)
             binding.editTextDescripcion.setText(disp.descripcion)
-            // Aquí podrías configurar otros campos si los tuvieras en el layout de edición
-            // Por ejemplo, un Switch para 'activo'
-            // binding.switchActivo.isChecked = disp.activo
+            if (disp.tipoAnimal >= 0 && disp.tipoAnimal < (binding.spinnerTipoAnimal.adapter?.count ?: 0)) {
+                binding.spinnerTipoAnimal.setSelection(disp.tipoAnimal)
+            } else {
+                binding.spinnerTipoAnimal.setSelection(0)
+            }
         }
 
         binding.buttonGuardar.setOnClickListener {
@@ -82,38 +101,14 @@ class EditDispositivoBottomSheet : BottomSheetDialogFragment() {
             binding.textFieldNombreLayout.error = null
         }
 
-        // Obtener el dispositivo original. Es importante que este sea el mismo objeto
-        // (o una copia con el mismo ID) que está siendo observado por el otro BottomSheet.
-        // Lo ideal es que el ViewModel maneje la instancia actual del dispositivo seleccionado.
-
-        // Supongamos que viewModel.dispositivoSeleccionado.value es el que se está editando
-        /*
-        viewModel.dispositivoSeleccionado.value?.let { dispositivoOriginal ->
-            val dispositivoActualizado = dispositivoOriginal.copy(
-                nombre = nombreNuevo,
-                descripcion = descripcionNueva
-                // Asegúrate de copiar todos los demás campos que no se editan
-            )
-            // Llama a la función del ViewModel para actualizar
-            viewModel.actualizarDetallesDispositivo(dispositivoActualizado)
-            dismiss() // Cierra el diálogo de edición
-        } ?: run {
-            // Manejar el caso donde dispositivoSeleccionado.value es nulo, aunque no debería ocurrir
-            // si el diálogo de edición se abrió correctamente.
-            Toast.makeText(context, "Error: No se pudo encontrar el dispositivo a editar", Toast.LENGTH_SHORT).show()
-            dismiss()
-        }
-
-         */
+        val tipoAnimalNuevo = binding.spinnerTipoAnimal.selectedItemPosition
 
         dispositivoActual?.let { dispositivoOriginal ->
-            val dispositivoEditado = dispositivoOriginal.copy( // Usa .copy() en el objeto original
+            val dispositivoEditado = dispositivoOriginal.copy(
+                // Usa .copy() en el objeto original
                 nombre = nombreNuevo,
                 descripcion = descripcionNueva,
-                // activo = esActivoNuevo, // Si editas el estado activo
-                // Mantén los otros campos que no se editan desde el original
-                // latitud, longitud, dentroDelArea usualmente no se editan aquí
-                // ultimaConexion = System.currentTimeMillis() // Actualiza el timestamp si tienes este campo
+                tipoAnimal = tipoAnimalNuevo
             )
             viewModel.actualizarDetallesDispositivo(dispositivoEditado)
             dismiss() // Cierra el diálogo de edición

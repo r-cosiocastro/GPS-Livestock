@@ -54,6 +54,19 @@
             android:gravity="top"/>
     </com.google.android.material.textfield.TextInputLayout>
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tipo de Animal:"
+        style="?attr/textAppearanceSubtitle1" />
+
+    <Spinner
+        android:id="@+id/spinnerTipoAnimal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:minHeight="48dp"/>
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

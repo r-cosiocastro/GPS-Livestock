@@ -33,6 +33,7 @@ import com.dasc.pecustrack.databinding.ActivityMapsBinding
 import com.dasc.pecustrack.location.LocationProviderImpl
 import com.dasc.pecustrack.ui.viewmodel.MapsViewModel
 import com.dasc.pecustrack.ui.viewmodel.ModoEdicionPoligono
+import com.dasc.pecustrack.utils.MarcadorIconHelper
 import com.dasc.pecustrack.utils.NotificationHelper
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
@@ -57,8 +58,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
     private val viewModel: MapsViewModel by viewModels()
 
     private var marcadorUbicacionActual: Marker? = null
-    private lateinit var cowboyIcon: BitmapDescriptor
-    private lateinit var fenceIcon: BitmapDescriptor
     private var centrarMapa = true
 
     val puntosPoligono = mutableListOf<LatLng>()
@@ -73,9 +72,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         mutableMapOf<Int, Polygon>() // Key: Tu ID de PoligonoData
     private var idPoligonoResaltadoVisualmente: Int? = null
     private val marcadoresVertices = mutableListOf<Marker>()
-    private lateinit var cowIcon: BitmapDescriptor
-    private lateinit var cowIconDisabled: BitmapDescriptor
-    private lateinit var cowIconWarning: BitmapDescriptor
 
     private lateinit var splashScreen: SplashScreen
     private val isMapReadyForSplash = AtomicBoolean(false) // Para quitar el splash
@@ -89,11 +85,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
     ) { permissions ->
         when {
             permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) -> {
-                // Permiso preciso concedido. Iniciar actualizaciones.
                 viewModel.iniciarActualizacionesDeUbicacionUsuario()
             }
             permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false) -> {
-                // Permiso aproximado concedido. Iniciar actualizaciones (la precisión será menor).
                 viewModel.iniciarActualizacionesDeUbicacionUsuario()
             }
             else -> {
@@ -117,8 +111,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         val not = NotificationHelper.createBasicNotification(
             this,
             NotificationHelper.BLUETOOTH_SERVICE_CHANNEL_ID,
-            "Servicio Bluetooth",
-            "El servicio Bluetooth está activo"
+            "¡Se te salieron las vacas wey!",
+            "Córrele que te las van a hacer carnitas"
         )
 
         NotificationHelper.showNotification(this, NotificationHelper.BLUETOOTH_SERVICE_NOTIFICATION_ID, not)
@@ -130,13 +124,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
             Log.d("MapsActivitySplash", "setKeepOnScreenCondition: keep? $keep (isMapReadyForSplash: ${isMapReadyForSplash.get()})")
             keep
         }
-
-        cowIcon = bitmapDescriptorFromVector(this, R.drawable.cow)!!
-        cowIconDisabled = bitmapDescriptorFromVector(this, R.drawable.cow, 2.5f, true)!!
-        cowIconWarning = bitmapDescriptorFromVector(this, R.drawable.cow_warning)!!
-
-        cowboyIcon = bitmapDescriptorFromVector(this, R.drawable.cowboy)!!
-        fenceIcon = bitmapDescriptorFromVector(this, R.drawable.ic_location, 1.0f)!!
 
         configurarObservadoresViewModel()
         configurarListenersUI()
@@ -160,7 +147,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
                         if (viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO)
                             return@collect
                         val latLng = LatLng(location.latitude, location.longitude)
-                        actualizarMarcadorUbicacionActual(latLng)
+                        //actualizarMarcadorUbicacionActual(latLng)
                         centrarMapa()
                     }
                 }
@@ -375,6 +362,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
             )
         )
 
+        map.isMyLocationEnabled = true
+        map.uiSettings.isZoomControlsEnabled = true
+        map.uiSettings.isCompassEnabled = true
+        map.uiSettings.isMapToolbarEnabled = true
+        map.uiSettings.isMyLocationButtonEnabled = true
+
 
         val posicionDefault = LatLng(24.1426, -110.3128) // La Paz, BCS
         map.moveCamera(CameraUpdateFactory.newLatLngZoom(posicionDefault, 12f))
@@ -553,19 +546,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
                                 it.zIndex = 0.5f // Asegurar que otros polígonos no lo tapen al seleccionarlo
                                 idPoligonoResaltadoVisualmente = idSeleccionado // Actualiza tu variable de seguimiento
                             }
-                            binding.fabEditar.text = getString(R.string.fab_edit, idSeleccionado.toString()) // Usa string resources
+                            binding.fabEditar.text = getString(R.string.fab_edit, idSeleccionado.toString())
                             binding.fabEditar.setIconResource(R.drawable.ic_edit)
                             Log.d("MapsActivity", "Polígono seleccionado (StateFlow): $idSeleccionado")
                         } else {
-                            // No hay polígono seleccionado
-                            // Restaurar texto del FAB si no estamos en ningún modo de edición
-                            // Necesitas observar el modo de edición para esta lógica
-                            // if (viewModel.modoEdicionPoligono.value == ModoEdicionPoligono.NINGUNO) {
-                            //    binding.fabEditar.text = getString(R.string.agregar_area)
-                            //    binding.fabEditar.setIconResource(R.drawable.ic_add)
-                            // }
-                            // Esta parte es un poco más compleja porque depende de OTRO StateFlow (modoEdicionPoligono)
-                            // Ver la nota abajo.
+                            binding.fabEditar.text = getString(R.string.fab_add)
+                            binding.fabEditar.setIconResource(R.drawable.ic_add)
+                            Log.d("MapsActivity", "Ningún polígono seleccionado (StateFlow).")
                         }
                     }
                 }
@@ -606,10 +593,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
                 poligonoEnCreacionVisual = null // Desde tu código original
 
                 if (idPoligonoSeleccionado != null) {
-                    binding.fabEditar.text = getString(R.string.editar_area_id, idPoligonoSeleccionado.toString())
+                    binding.fabEditar.text = getString(R.string.fab_editing, idPoligonoSeleccionado.toString())
                     binding.fabEditar.setIconResource(R.drawable.ic_edit)
                 } else {
-                    binding.fabEditar.text = getString(R.string.agregar_area)
+                    binding.fabEditar.text = getString(R.string.fab_add)
                     binding.fabEditar.setIconResource(R.drawable.ic_add)
                 }
                 binding.fabOpcionesEdicion.visibility = View.GONE
@@ -666,16 +653,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         viewModel.markerDispositivoMap.clear()
 
         listaDeDispositivos.forEach { dispositivo ->
-            // ... tu lógica para crear MarkerOptions y añadir al mapa ...
-            val icon = if (dispositivo.activo) cowIcon
-            else if (!dispositivo.dentroDelArea)
-                cowIconWarning
-            else cowIconDisabled
+            val iconoMarcador = MarcadorIconHelper.obtenerIconoMarcador(
+                this,
+                dispositivo
+            )
             val markerOptions = MarkerOptions()
                 .position(LatLng(dispositivo.latitud, dispositivo.longitud))
                 .title(dispositivo.nombre)
                 .snippet(dispositivo.descripcion ?: "")
-                .icon(icon)
+                .icon(iconoMarcador)
             val marcador = googleMap.addMarker(markerOptions)
             if (marcador != null) {
                 viewModel.markerDispositivoMap[marcador] = dispositivo
@@ -701,7 +687,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
                 MarkerOptions()
                     .position(latLng)
                     .title("Tu ubicación")
-                    .icon(cowboyIcon)
+                    //.icon(cowboyIcon)
             )
         } else {
             marcadorUbicacionActual?.position = latLng
@@ -716,7 +702,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
     fun bitmapDescriptorFromVector(
         context: Context,
         vectorResId: Int,
-        scale: Float = 2.5f,
+        scale: Float = 1f,
         grayscale: Boolean = false
     ): BitmapDescriptor? {
         val vectorDrawable = ContextCompat.getDrawable(context, vectorResId) ?: return null
@@ -753,7 +739,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
 
     private fun centrarMapa() {
         if (!centrarMapa || viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO) return
-            val bounds = viewModel.obtenerBoundsParaMapa() ?: return
+
+        val bounds = viewModel.obtenerBoundsParaMapa() ?: return
 
             val padding = 150
             val cu = CameraUpdateFactory.newLatLngBounds(bounds, padding)

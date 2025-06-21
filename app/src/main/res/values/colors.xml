@@ -35,4 +35,10 @@
     <color name="md_theme_surfaceTint">#006A66</color>
     <color name="md_theme_outlineVariant">#BFC9C7</color>
     <color name="md_theme_scrim">#000000</color>
+
+    <color name="colorEstadoDesconocido">#616161</color>
+    <color name="colorEstadoInactivoFueraArea">#ED2125</color>
+    <color name="colorEstadoInactivo">#6D6D6D</color>
+    <color name="colorEstadoActivoDentroArea">#4CAF50</color>
+    <color name="colorEstadoFueraArea">#EB686C</color>
 </resources>

@@ -326,6 +326,7 @@ class BluetoothService : Service() {
                     nombre = "Dispositivo: $deviceId",
                     latitud = lat,
                     longitud = lon,
+                    tipoAnimal = 1, // Asignar un tipo por defecto
                     ultimaConexion = timestamp,
                     activo = true,
                     descripcion = "Sin descripción",
