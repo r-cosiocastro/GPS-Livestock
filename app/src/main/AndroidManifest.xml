@@ -12,6 +12,9 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+
 
     <application
         android:name=".PecusTrack"
@@ -26,16 +29,32 @@
         tools:targetApi="31"
         tools:ignore="GoogleAppIndexingWarning">
 
+        <service android:name=".services.BluetoothService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="${MAPS_API_KEY}" />
 
         <activity
-            android:name=".ui.view.SplashView"
+            android:name=".ui.view.DeviceActivity"
             android:exported="true"
+            android:label="Seleccionar Dispositivo Bluetooth"
+            android:theme="@style/Theme.PecusTrack"
             android:screenOrientation="portrait"
-            android:configChanges="keyboardHidden|orientation|screenSize"
-            android:theme="@style/Theme.PecusTrack.SplashScreen">
+            android:configChanges="keyboardHidden|orientation|screenSize">
+            <!-- Asegúrate que el tema sea el correcto -->
+            <!-- Puedes añadir un parent activity si es parte de un flujo -->
+            <!--
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".ui.view.MainActivity" />
+            -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -45,7 +64,12 @@
         <activity
             android:name=".ui.view.MapsActivity"
             android:exported="true"
-            android:screenOrientation="portrait">
+            android:screenOrientation="portrait"
+            android:configChanges="keyboardHidden|orientation|screenSize">
+
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".ui.view.MainActivity" />
 
             </activity>
         <activity

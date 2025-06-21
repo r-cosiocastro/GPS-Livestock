@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
@@ -40,6 +41,7 @@ class BluetoothViewModel @Inject constructor(
             when (intent?.action) {
                 BluetoothService.ACTION_DEVICE_FOUND -> {
                     val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothService.EXTRA_DEVICE)
+                    Log.d("BluetoothViewModel", "Dispositivo encontrado: ${device?.name}")
                     device?.let {
                         val currentList = _scannedDevices.value ?: emptyList()
                         if (!currentList.contains(it)) {
@@ -74,10 +76,13 @@ class BluetoothViewModel @Inject constructor(
     }
 
     fun startScan() {
+        Log.d("BluetoothViewModel", "Comenzando escaneo de dispositivos Bluetooth (viewmodel)")
         val intent = Intent(getApplication(), BluetoothService::class.java).apply {
             action = BluetoothService.ACTION_START_SCAN
+            Log.d("BluetoothViewModel", "Intent para iniciar escaneo: $this")
         }
         ContextCompat.startForegroundService(getApplication(), intent)
+        Log.d("BluetoothViewModel", "Intent enviado para iniciar escaneo")
     }
 
     fun connectToDevice(device: BluetoothDevice) {

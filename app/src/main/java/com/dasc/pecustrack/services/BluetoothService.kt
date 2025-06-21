@@ -120,6 +120,7 @@ class BluetoothService : Service() {
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d("BluetoothService", "onStartCommand: Servicio iniciado con intent: $intent")
         val notificationText = "Servicio Bluetooth en ejecución..."
         val notification = NotificationHelper.createBluetoothServiceNotification(this, notificationText)
         startForeground(NotificationHelper.BLUETOOTH_SERVICE_NOTIFICATION_ID, notification)
@@ -147,6 +148,7 @@ class BluetoothService : Service() {
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     private fun startScan() {
+        Log.d("BluetoothService", "Iniciando escaneo de dispositivos Bluetooth...")
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
             // No puedes escanear sin permiso en Android 12+
             sendStatusBroadcast("Error: Permiso de escaneo denegado")
@@ -346,7 +348,9 @@ class BluetoothService : Service() {
     }
 
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun sendDeviceFoundBroadcast(device: BluetoothDevice) {
+        Log.d("BluetoothService", "Enviando broadcast de dispositivo encontrado: ${device.name ?: device.address}")
         val intent = Intent(ACTION_DEVICE_FOUND).apply {
             putExtra(EXTRA_DEVICE, device)
         }
@@ -354,6 +358,7 @@ class BluetoothService : Service() {
     }
 
     private fun sendStatusBroadcast(status: String) {
+        Log.d("BluetoothService", "Enviando broadcast de estado: $status")
         val intent = Intent(ACTION_STATUS_CHANGED).apply {
             putExtra(EXTRA_STATUS, status)
         }
