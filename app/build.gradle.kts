@@ -1,5 +1,5 @@
-import java.util.Properties
 import java.io.FileInputStream
+import java.util.Properties
 
 fun getLocalProperty(propertyName: String): String? {
     val properties = Properties()
@@ -74,6 +74,7 @@ dependencies {
     implementation(libs.room.ktx)
     implementation(libs.hilt.android)
     implementation(libs.androidx.bluetooth)
+    implementation(libs.androidx.localbroadcastmanager)
     ksp(libs.hilt.compiler)
     ksp(libs.room.ksp)
     implementation(libs.lifecycle.viewmodel.ktx)

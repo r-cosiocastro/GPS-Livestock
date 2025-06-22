@@ -27,14 +27,19 @@
         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Nombre del dispositivo"
+        app:counterEnabled="true"
+        app:counterMaxLength="20"
         android:layout_marginBottom="8dp">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/editTextNombre"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textCapWords"/>
+            android:autofillHints="name"
+            android:hint="Nombre del Dispositivo"
+            android:inputType="textCapWords"
+            android:maxLength="20"
+            android:maxLines="1" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
@@ -43,6 +48,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Descripción (opcional)"
+        app:counterEnabled="true"
+        app:counterMaxLength="100"
         android:layout_marginBottom="16dp">
 
         <com.google.android.material.textfield.TextInputEditText
@@ -51,6 +58,8 @@
             android:layout_height="wrap_content"
             android:inputType="textMultiLine|textCapSentences"
             android:minLines="3"
+            android:maxLength="100"
+            android:maxLines="5"
             android:gravity="top"/>
     </com.google.android.material.textfield.TextInputLayout>
 

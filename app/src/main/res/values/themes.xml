@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.PecusTrack" parent="Theme.Material3.Light.NoActionBar">
+
+    <style name="Theme.PecusTrack" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
         <item name="colorPrimary">@color/md_theme_primary</item>
         <item name="colorOnPrimary">@color/md_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/md_theme_primaryContainer</item>
@@ -28,6 +29,14 @@
         <item name="colorSurfaceInverse">@color/md_theme_inverseSurface</item>
         <item name="colorOnSurfaceInverse">@color/md_theme_inverseOnSurface</item>
         <item name="colorPrimaryInverse">@color/md_theme_inversePrimary</item>
+
+        <!-- Añadimos las nuevas formas y animaciones -->
+        <item name="shapeAppearanceSmallComponent">@style/ExpressiveShape.Small</item>
+        <item name="shapeAppearanceMediumComponent">@style/ExpressiveShape.Medium</item>
+        <item name="shapeAppearanceLargeComponent">@style/ExpressiveShape.Large</item>
+
+        <!-- Animaciones para Activity y Fragment -->
+        <item name="android:windowAnimationStyle">@style/ExpressiveWindowAnimation</item>
     </style>
 
     <style name="Theme.PecusTrack.SplashScreen" parent="Theme.SplashScreen">

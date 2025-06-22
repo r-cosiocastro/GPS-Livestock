@@ -27,7 +27,8 @@
     <string name="distancia">Distancia: %1$s</string>
     <string name="ultima_conexion">: %1$s</string>
 
-    <string name="estado_del_dispositivo">Estado: %1$s</string>
+    <string name="estado_del_dispositivo"><b>Estado:</b> %1$s</string>
+    <string name="tipo_de_animal">Tipo de animal: %1$s</string>
     <string name="fab_edit">Editar Área %1$s</string>
     <string name="fab_editing">Editar Área %1$s</string>
     <string name="fab_add">Agregar Área</string>
@@ -43,6 +44,7 @@
     <string name="device_bluetooth_connected_to">Conectado a: %1$s</string>
     <string name="device_bluetooth_disconnected">Desconectado</string>
     <string name="device_disconnect_button_text">Desconectar</string>
+    <string name="ruta_al_dispositivo">Ruta al dispositivo</string>
 
     <string-array name="tipos_animal_nombres">
         <item>Vaca</item>

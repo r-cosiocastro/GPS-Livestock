@@ -321,7 +321,9 @@ class BluetoothService : Service() {
 
                 isAttemptingAutoReconnect = true
                 lastAttemptedDeviceAddressForAutoReconnect = lastDeviceAddress
-                sendReconnectAttemptingBroadcast(nameForInitialToast)
+                if (nameForInitialToast != null) {
+                    sendReconnectAttemptingBroadcast(nameForInitialToast)
+                }
                 attemptAutoReconnectToDevice(lastDeviceAddress) // autoConnect = true o false según tu elección
             }
         }
@@ -1086,6 +1088,7 @@ class BluetoothService : Service() {
                             dispositivo = Dispositivo(
                                 id = idDispositivo,
                                 nombre = "Dispositivo $idDispositivo",
+                                descripcion = "Sin descripción",
                                 latitud = latitud,
                                 longitud = longitud,
                                 ultimaConexion = System.currentTimeMillis(),
@@ -1495,10 +1498,8 @@ class BluetoothService : Service() {
                 Log.d("BluetoothService", "Descubrimiento clásico detenido.")
             }
         }
-        // Detener escaneo BLE
-        stopBleScan() // Esta función ya debería tener logging interno
+        stopBleScan()
 
-        // 2. Limpiar Conexiones y Recursos BLE
         Log.d("BluetoothService", "Limpiando conexiones GATT (BLE)...")
         connectedBleDevices.values.forEach { gatt ->
             if (ActivityCompat.checkSelfPermission(
@@ -1508,17 +1509,12 @@ class BluetoothService : Service() {
             ) {
                 Log.d("BluetoothService", "Desconectando GATT de ${gatt.device.address}")
                 gatt.disconnect()
-                // El gatt.close() se llamará idealmente en onConnectionStateChange
             }
         }
         connectedBleDevices.clear()
-        // Si tienes una referencia individual a un gatt principal, también ciérrala.
-        // bluetoothGatt?.disconnect() // Podría ser redundante si ya está en connectedBleDevices
-        // bluetoothGatt?.close()
 
-        // 4. Anular Registro de BroadcastReceivers
         try {
-            unregisterReceiver(discoveryReceiver) // Para el discoveryReceiver de Clásico
+            unregisterReceiver(discoveryReceiver)
             Log.d("BluetoothService", "discoveryReceiver desregistrado.")
         } catch (e: IllegalArgumentException) {
             Log.w(
@@ -1527,7 +1523,6 @@ class BluetoothService : Service() {
             )
         }
 
-        // 5. Cancelar Coroutines
         serviceJob.cancel()
         Log.d("BluetoothService", "ServiceJob cancelado. Limpieza de onDestroy completada.")
     }

@@ -25,17 +25,50 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <TextView
+        <LinearLayout
+            android:id="@+id/layout_titulo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/dragHandle">
+
+            <TextView
             android:id="@+id/textTitulo"
             android:layout_width="0dp"
+                android:layout_weight="3"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:layout_marginBottom="8dp"
-            android:text="Nombre del dispositivo"
+                android:drawablePadding="4dp"
+                android:gravity="center_vertical"
             android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/dragHandle" />
+                android:text="Nombre"
+                app:drawableStartCompat="@drawable/ic_cow" />
+
+
+            <Button
+                android:id="@+id/btnEditar"
+                style="@style/Widget.Material3.Button.IconButton.Filled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center_vertical"
+                app:icon="@drawable/ic_edit"
+                app:layout_constraintTop_toBottomOf="@id/textDescripcion" />
+
+            <Button
+                android:id="@+id/btnEliminar"
+                style="@style/Widget.Material3.Button.IconButton.Filled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:backgroundTint="@color/md_theme_error"
+                android:gravity="center_vertical"
+                app:icon="@drawable/ic_delete"
+                app:layout_constraintTop_toBottomOf="@id/textDescripcion" />
+        </LinearLayout>
 
 
         <LinearLayout
@@ -45,7 +78,7 @@
             android:orientation="vertical"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/textTitulo">
+            app:layout_constraintTop_toBottomOf="@id/layout_titulo">
 
             <com.google.android.material.divider.MaterialDivider
                 android:layout_width="wrap_content"
@@ -85,8 +118,16 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
                 android:text="@string/estado_del_dispositivo"
+                android:textAppearance="@style/TextAppearance.Material3.LabelLarge" />
+
+            <TextView
+                android:id="@+id/textTipoAnimal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/tipo_de_animal"
                 android:textAppearance="@style/TextAppearance.Material3.LabelLarge" />
 
             <com.google.android.material.divider.MaterialDivider
@@ -119,22 +160,12 @@
             android:layout_marginTop="16dp"
             app:icon="@drawable/ic_route"
             app:iconPadding="4dp"
-            android:text="Ruta al dispositivo"
+            android:backgroundTint="@color/md_theme_secondary"
+            android:text="@string/ruta_al_dispositivo"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toBottomOf="@id/textDescripcion" />
 
-        <Button
-            android:id="@+id/btnEditar"
-            style="@style/Widget.Material3.Button.IconButton.Filled"
-            android:layout_width="wrap_content"
-            android:layout_height="0dp"
-            android:layout_marginTop="16dp"
-            android:text="Editar detalles"
-            app:icon="@drawable/ic_edit"
-            app:iconPadding="4dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/textDescripcion" />
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 </com.google.android.material.card.MaterialCardView>

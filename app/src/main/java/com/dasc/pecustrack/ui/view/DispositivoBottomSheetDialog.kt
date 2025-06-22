@@ -11,7 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
-import kotlinx.coroutines.launch
+import androidx.appcompat.app.AlertDialog
 import androidx.core.net.toUri
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
@@ -20,8 +20,16 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.dasc.pecustrack.R
 import com.dasc.pecustrack.data.model.Dispositivo
 import com.dasc.pecustrack.ui.viewmodel.MapsViewModel
+import com.dasc.pecustrack.utils.MarcadorIconHelper.TIPO_ANIMAL_CABALLO
+import com.dasc.pecustrack.utils.MarcadorIconHelper.TIPO_ANIMAL_CABRA
+import com.dasc.pecustrack.utils.MarcadorIconHelper.TIPO_ANIMAL_CERDO
+import com.dasc.pecustrack.utils.MarcadorIconHelper.TIPO_ANIMAL_OVEJA
+import com.dasc.pecustrack.utils.MarcadorIconHelper.TIPO_ANIMAL_VACA
 import com.dasc.pecustrack.utils.StringFormatUtils.formatearTiempoConexion
+import com.dasc.pecustrack.utils.TextUtils.boldTitle
+import com.dasc.pecustrack.utils.TextUtils.boldTitleFromResource
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import kotlinx.coroutines.launch
 
 class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
     private val viewModel: MapsViewModel by activityViewModels()
@@ -41,9 +49,10 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
         val textEstado = view.findViewById<TextView>(R.id.textEstado)
         val btnNavegar = view.findViewById<Button>(R.id.btnNavegar)
         val btnEditar = view.findViewById<Button>(R.id.btnEditar)
+        val btnEliminar = view.findViewById<Button>(R.id.btnEliminar)
 
         viewModel.distanciaTexto.observe(viewLifecycleOwner) { texto ->
-            textDistancia.text = "Distancia: $texto"
+            textDistancia.text = boldTitle("Distancia: ", texto)
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -61,6 +70,24 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
                                 "DispositivoBottomSheetDialog",
                                 "Edit button clicked for device: ${dispositivo.nombre}"
                             )
+                        }
+
+                        btnEliminar.setOnClickListener {
+                            AlertDialog.Builder(requireContext())
+                                .setTitle("Eliminar Dispositivo")
+                                .setMessage(
+                                    "¿Desea eliminar el dispositivo ${dispositivo.nombre}? " +
+                                            "El dispositivo volverá a agregarse si el rastreador lo vuelve a ubicar."
+                                )
+                                .setPositiveButton("Eliminar") { _, _ ->
+                                    viewModel.eliminarDispositivo(dispositivo)
+                                    if (isAdded && dialog?.isShowing == true) {
+                                        dismissAllowingStateLoss()
+                                    }
+                                }
+                                .setNegativeButton("Cancelar", null)
+                                .show()
+
                         }
 
                         btnNavegar.setOnClickListener {
@@ -99,6 +126,7 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
     }
 
     private fun actualizarInformacionDinamica(dispositivo: Dispositivo?) {
+        val context = requireContext()
         val textoConexion = formatearTiempoConexion(dispositivo?.ultimaConexion)
         val textoEstado = if (dispositivo != null) {
             when {
@@ -110,10 +138,24 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
         } else {
             "Desconocido"
         }
+
+        val icono = when (dispositivo?.tipoAnimal) {
+            TIPO_ANIMAL_VACA -> R.drawable.ic_cow
+            TIPO_ANIMAL_CABALLO -> R.drawable.ic_horse
+            TIPO_ANIMAL_OVEJA -> R.drawable.ic_sheep
+            TIPO_ANIMAL_CABRA -> R.drawable.ic_goat
+            TIPO_ANIMAL_CERDO -> R.drawable.ic_pig
+            else -> R.drawable.ic_cow
+        }
+
+        view?.findViewById<TextView>(R.id.textTitulo)?.setCompoundDrawablesWithIntrinsicBounds(
+            icono, 0, 0, 0
+        )
+
         view?.findViewById<TextView>(R.id.textUltConexion)?.text =
             resources.getString(R.string.ultima_conexion, textoConexion)
         view?.findViewById<TextView>(R.id.textEstado)?.text =
-            resources.getString(R.string.estado_del_dispositivo, textoEstado)
+            boldTitleFromResource(context, R.string.estado_del_dispositivo, textoEstado)
         view?.findViewById<TextView>(R.id.textEstado)?.setTextColor(
             when {
                 dispositivo == null -> resources.getColor(R.color.colorEstadoDesconocido, null)
@@ -123,6 +165,23 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
                 else -> resources.getColor(R.color.colorEstadoActivoDentroArea, null)
             }
         )
+
+        view?.findViewById<TextView>(R.id.textTipoAnimal)?.text = boldTitleFromResource(
+            context,
+            R.string.tipo_de_animal,
+            obtenerNombreTipoAnimal(dispositivo)
+        )
+    }
+
+    private fun obtenerNombreTipoAnimal(dispositivo: Dispositivo?): String {
+        return when (dispositivo?.tipoAnimal) {
+            TIPO_ANIMAL_VACA -> "Vaca"
+            TIPO_ANIMAL_CABALLO -> "Caballo"
+            TIPO_ANIMAL_OVEJA -> "Oveja"
+            TIPO_ANIMAL_CABRA -> "Cabra"
+            TIPO_ANIMAL_CERDO -> "Cerdo"
+            else -> "Desconocido"
+        }
     }
 
     private val handler = Handler(Looper.getMainLooper())

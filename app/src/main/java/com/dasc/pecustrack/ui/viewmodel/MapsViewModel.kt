@@ -79,6 +79,10 @@ class MapsViewModel @Inject constructor(
     val poligonoSeleccionadoId: StateFlow<Int?> = _poligonoSeleccionadoId.asStateFlow()
 
     init {
+        // Iniciar distanciaTexto con un valor por defecto
+        distanciaTexto.value = "Calculando"
+
+
         // Obtener la última ubicación conocida al iniciar
         viewModelScope.launch {
             val lastLocation = locationProvider.getLastKnownLocationSuspending()
@@ -274,6 +278,16 @@ class MapsViewModel @Inject constructor(
         _dispositivoSeleccionado.value = null
     }
 
+    fun eliminarDispositivo(dispositivo: Dispositivo) {
+        viewModelScope.launch {
+            dispositivoRepository.deleteDispositivo(dispositivo)
+            // Si el dispositivo eliminado es el que está seleccionado, deselecciona
+            if (_dispositivoSeleccionado.value?.id == dispositivo.id) {
+                _dispositivoSeleccionado.value = null
+            }
+        }
+    }
+
     fun actualizarDetallesDispositivo(dispositivoActualizado: Dispositivo) {
         viewModelScope.launch {
             try {
@@ -347,6 +361,19 @@ class MapsViewModel @Inject constructor(
         dispositivoSeleccionado.value?.let { dispositivo ->
             val distancia = calcularDistancia(
                 ubicacionActual,
+                Location("").apply {
+                    latitude = dispositivo.latitud
+                    longitude = dispositivo.longitud
+                }
+            )
+            distanciaTexto.postValue(formatearDistancia(distancia))
+        }
+    }
+
+    fun calcularDistancias() {
+        dispositivoSeleccionado.value?.let { dispositivo ->
+            val distancia = calcularDistancia(
+                userLocation.value ?: return,
                 Location("").apply {
                     latitude = dispositivo.latitud
                     longitude = dispositivo.longitud

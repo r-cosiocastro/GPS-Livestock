@@ -6,15 +6,14 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.widget.ImageView
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AlertDialog
@@ -27,7 +26,6 @@ import com.dasc.pecustrack.R
 import com.dasc.pecustrack.data.model.Dispositivo
 import com.dasc.pecustrack.data.model.Poligono
 import com.dasc.pecustrack.databinding.ActivityMapsBinding
-import com.dasc.pecustrack.location.LocationProviderImpl
 import com.dasc.pecustrack.services.BluetoothService
 import com.dasc.pecustrack.ui.viewmodel.MapsViewModel
 import com.dasc.pecustrack.ui.viewmodel.ModoEdicionPoligono
@@ -47,7 +45,6 @@ import com.google.android.gms.maps.model.PolygonOptions
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicBoolean
 
 @AndroidEntryPoint
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedCallback {
@@ -76,6 +73,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
     private var currentToast: Toast? = null
 
     private val marcadoresVerticesActuales = mutableListOf<Marker>()
+
+
+    var isExpanded = false
 
     private val bluetoothServiceReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -112,25 +112,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
                     currentToast?.show()
                     binding.textEstadoBluetooth.text = "Desconectado"
                 }
-            }
-        }
-    }
-
-    private val locationPermissionRequest = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        when {
-            permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) -> {
-                viewModel.iniciarActualizacionesDeUbicacionUsuario()
-            }
-            permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false) -> {
-                viewModel.iniciarActualizacionesDeUbicacionUsuario()
-            }
-            else -> {
-                // Permiso no concedido. Informar al usuario o manejar la situación.
-                Toast.makeText(this, "Permiso de ubicación denegado", Toast.LENGTH_LONG).show()
-                // Aquí podrías mostrar un diálogo explicando por qué necesitas el permiso
-                // y ofrecer llevar al usuario a la configuración de la app.
             }
         }
     }
@@ -172,8 +153,54 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
 
         val bottomSheet = binding.bottomCardDeviceDetails
         val behavior = BottomSheetBehavior.from(bottomSheet)
-        behavior.peekHeight = 180  // Ajusta según prefieras, 120dp es razonable para solo ver título y el handle
+        behavior.peekHeight = 220
         behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+
+        val arrowIcon = findViewById<ImageView>(R.id.arrow_icon)
+
+        val offsetExpanded = 0f
+        val offsetCollapsed = -80f
+
+        behavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
+            override fun onStateChanged(bottomSheet: View, newState: Int) {
+                when (newState) {
+                    BottomSheetBehavior.STATE_EXPANDED -> {
+                        //arrowIcon.setImageResource(R.drawable.ic_arrow_down)
+                        isExpanded = true
+                        binding.fabBluetooth.animate()
+                            .translationY(offsetExpanded)
+                            .setDuration(250)
+                            .start()
+                    }
+
+                    BottomSheetBehavior.STATE_COLLAPSED,
+                    BottomSheetBehavior.STATE_HALF_EXPANDED -> {
+                        //arrowIcon.setImageResource(R.drawable.ic_arrow_up)
+                        isExpanded = false
+                        binding.fabBluetooth.animate()
+                            .translationY(offsetCollapsed)
+                            .setDuration(250)
+                            .start()
+                    }
+                }
+            }
+
+            override fun onSlide(bottomSheet: View, slideOffset: Float) {
+                arrowIcon.rotation = 180 * slideOffset
+                val interpolatedOffset = offsetCollapsed * (1 - slideOffset)
+                binding.fabBluetooth.translationY = interpolatedOffset
+            }
+        })
+
+        arrowIcon.setOnClickListener {
+            if (isExpanded) {
+                behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+            } else {
+                behavior.state = BottomSheetBehavior.STATE_EXPANDED
+            }
+        }
+
+
 
         val not = NotificationHelper.createBasicNotification(
             this,
@@ -210,19 +237,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
                     }
                 }
             }
-        }
-
-        // Pedir permisos de ubicación
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestPermissions(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                ),
-                1
-            )
         }
 
         // viewModel.insertarDispositivosEjemplo()
@@ -410,19 +424,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         val posicionDefault = LatLng(24.1426, -110.3128) // La Paz, BCS
         map.moveCamera(CameraUpdateFactory.newLatLngZoom(posicionDefault, 12f))
 
-        map.setOnCameraMoveStartedListener(
-            object : GoogleMap.OnCameraMoveStartedListener {
-                override fun onCameraMoveStarted(var1: Int) {
-                    if (var1 == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
-                        centrarMapa = false
-                        binding.btnCentrar.visibility = View.VISIBLE
-                    } else {
-                        centrarMapa = true
-                        binding.btnCentrar.visibility = View.GONE
-                    }
-                }
+        map.setOnCameraMoveStartedListener { var1 ->
+            if (var1 == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
+                centrarMapa = false
+                binding.btnCentrar.visibility = View.VISIBLE
+            } else {
+                centrarMapa = true
+                binding.btnCentrar.visibility = View.GONE
             }
-        )
+        }
 
         map.setOnMapClickListener { latLng ->
             // Si estamos en modo de creación o edición de polígonos, añadimos un punto.
@@ -521,6 +531,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
                 viewModel.deseleccionarPoligono() // Deselecciona polígono si seleccionas un dispositivo
                 mostrarInfoDispositivo(dispositivo) // O la lógica para mostrar el BottomSheet del dispositivo
                 centrarDispositivoEnMapa(dispositivo) // Opcional
+                viewModel.calcularDistancias()
                 Log.d("MapsActivity", "Dispositivo ${dispositivo.id} seleccionado por clic en marcador.")
                 return@setOnMarkerClickListener true // Evento consumido
             }
@@ -738,7 +749,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
     }
 
     private fun centrarMapa() {
-        if (!centrarMapa || viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO || !::googleMap.isInitialized) return
+        if (!centrarMapa || viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO
+            || !::googleMap.isInitialized || viewModel.dispositivoSeleccionado.value != null
+        ) return
 
         val bounds = viewModel.obtenerBoundsParaMapa() ?: return
 
@@ -773,23 +786,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
 
     override fun onResume() {
         super.onResume()
-        solicitarPermisosDeUbicacionEIniciarActualizaciones()
         handler.post(checkDispositivosRunnable)
-    }
-
-    private fun solicitarPermisosDeUbicacionEIniciarActualizaciones() {
-        if (LocationProviderImpl.PermissionUtils.hasLocationPermissions(this)) {
-            Log.d("MapsActivity", "Ya se tienen permisos de ubicación.")
-            viewModel.iniciarActualizacionesDeUbicacionUsuario()
-        } else {
-            Log.d("MapsActivity", "Solicitando permisos de ubicación.")
-            locationPermissionRequest.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        }
     }
 
     override fun onPause() {
