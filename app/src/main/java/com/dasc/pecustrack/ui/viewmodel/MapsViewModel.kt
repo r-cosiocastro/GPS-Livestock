@@ -94,8 +94,6 @@ class MapsViewModel @Inject constructor(
                 }
             }
         }
-
-        insertarDispositivosEjemplo()
         verificarEstadoDispositivos()
     }
 

@@ -1,73 +1,31 @@
 package com.dasc.pecustrack.ui.view
 
-import android.Manifest
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.launch
-import androidx.activity.result.registerForActivityResult
 import androidx.activity.viewModels
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import androidx.core.content.ContextCompat.startActivity
+import androidx.core.view.isGone
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.dasc.pecustrack.R
 import com.dasc.pecustrack.databinding.ActivitySelectDeviceBinding
 import com.dasc.pecustrack.ui.adapter.BluetoothDeviceAdapter
 import com.dasc.pecustrack.ui.viewmodel.BluetoothViewModel
+import com.dasc.pecustrack.utils.LoadingDialog
 import dagger.hilt.android.AndroidEntryPoint
-import kotlin.getValue
-import androidx.core.view.isGone
-import androidx.core.view.isVisible
 
 @AndroidEntryPoint
 class DeviceActivity : AppCompatActivity() {
     private lateinit var binding: ActivitySelectDeviceBinding
     private val bluetoothViewModel: BluetoothViewModel by viewModels()
     private lateinit var deviceAdapter: BluetoothDeviceAdapter
-
-    // Permisos necesarios para Bluetooth en diferentes versiones de Android
-    private val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        arrayOf(
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.BLUETOOTH_CONNECT
-        )
-    } else {
-        arrayOf(
-            Manifest.permission.BLUETOOTH, // Para API < 31
-            Manifest.permission.BLUETOOTH_ADMIN, // Para API < 31
-            Manifest.permission.ACCESS_FINE_LOCATION // Requerido para escaneo en algunas versiones
-        )
-    }
-
-    private val requestPermissionsLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
-            var allGranted = true
-            permissions.entries.forEach {
-                if (!it.value) {
-                    allGranted = false
-                }
-            }
-            if (allGranted) {
-                checkBluetoothAndStartScan()
-            } else {
-                // Mostrar un diálogo explicando por qué se necesitan los permisos
-                // y ofrecer ir a la configuración de la app.
-                showPermissionDeniedDialog()
-                binding.textViewEstadoScan.text = "Permisos necesarios denegados."
-                binding.progressBarScan.visibility = View.GONE
-            }
-        }
+    private lateinit var loadingDialog: LoadingDialog
 
     private val enableBluetoothLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -90,6 +48,7 @@ class DeviceActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true) // Si quieres un botón de atrás
 
         setupRecyclerView()
+        loadingDialog = LoadingDialog(this@DeviceActivity)
 
         binding.buttonEscanear.setOnClickListener {
             // Limpiar la lista anterior antes de un nuevo escaneo
@@ -101,7 +60,7 @@ class DeviceActivity : AppCompatActivity() {
                     // Por ahora, el ViewModel se actualiza con nuevos dispositivos.
                 }
             }
-            checkPermissionsAndStartScan()
+            checkBluetoothAndStartScan()
         }
 
         observeViewModel()
@@ -119,7 +78,7 @@ class DeviceActivity : AppCompatActivity() {
             bluetoothViewModel.connectToDevice(device)
             // Aquí puedes mostrar un diálogo de "Conectando..."
             // y observar connectionStatus para cerrarlo o mostrar errores.
-            Toast.makeText(this, "Conectando a ${getDeviceNameSafe(device)}...", Toast.LENGTH_SHORT).show()
+            // Toast.makeText(this, "Conectando a ${getDeviceNameSafe(device)}...", Toast.LENGTH_SHORT).show()
             // Podrías querer deshabilitar más clics mientras se conecta.
         }
         binding.recyclerViewDispositivos.apply {
@@ -130,6 +89,44 @@ class DeviceActivity : AppCompatActivity() {
     }
 
     private fun observeViewModel() {
+        bluetoothViewModel.isConnecting.observe(this) {
+            if (it) {
+                loadingDialog.showLoadingDialog("Conectando...", R.raw.loading)
+            } else {
+                loadingDialog.dismiss()
+            }
+        }
+
+        bluetoothViewModel.connectedDevice.observe(this) { device ->
+            if (device != null) {
+                binding.buttonDesconectar.visibility = View.VISIBLE // Mostrar botón para desconectar
+            } else {
+                // No hay dispositivo conectado
+                binding.buttonDesconectar.visibility = View.GONE
+            }
+        }
+
+        bluetoothViewModel.currentDeviceName.observe(this) { deviceName ->
+            // Actualizar el texto de conexión si cambia el nombre del dispositivo conectado
+            if (deviceName != null) {
+                binding.textViewConectadoA.text = getString(R.string.device_bluetooth_connected_to, deviceName)
+            } else{
+                binding.textViewConectadoA.text = getString(R.string.device_bluetooth_disconnected)
+            }
+        }
+
+        // Opcional: observar el estado de conexión más detallado
+        bluetoothViewModel.connectionStatus.observe(this) { status ->
+            // Podrías usar este status para mensajes más detallados si es necesario,
+            // pero connectedDevice ya te dice si estás o no conectado.
+            // binding.someOtherTextView.text = status
+            // binding.textViewConectadoA.text = getString(R.string.device_bluetooth_connected_to, status)
+        }
+
+        binding.buttonDesconectar.setOnClickListener {
+            bluetoothViewModel.disconnect() // Asegúrate que tu ViewModel tiene esta función que llama al servicio
+        }
+
         bluetoothViewModel.scannedDevices.observe(this) { devices ->
             if (devices.isNullOrEmpty() && binding.progressBarScan.isGone) {
                 binding.textViewEstadoScan.visibility = View.VISIBLE
@@ -149,14 +146,14 @@ class DeviceActivity : AppCompatActivity() {
         }
 
         bluetoothViewModel.connectionStatus.observe(this) { status ->
-            Toast.makeText(this, "Estado: $status", Toast.LENGTH_LONG).show()
+            //Toast.makeText(this, "Estado: $status", Toast.LENGTH_LONG).show()
             // Actualizar UI según el estado (ej. ProgressBar, texto)
             if (status.contains("Conectado a")) {
                 // Aquí podrías cerrar la activity y devolver el dispositivo conectado
                 // o navegar a otra pantalla.
                 // Por ejemplo, devolver el dispositivo conectado a la actividad que llamó
                 val deviceName = status.substringAfter("Conectado a ")
-                Toast.makeText(this, "Conexión exitosa a $deviceName", Toast.LENGTH_LONG).show()
+                //Toast.makeText(this, "Conectado a $deviceName", Toast.LENGTH_LONG).show()
 
                 // Opcional: Devolver resultado a la actividad que inició esta
                 // val resultIntent = Intent()
@@ -184,20 +181,8 @@ class DeviceActivity : AppCompatActivity() {
                 // Si ya hay un dispositivo conectado, quizás quieras mostrarlo
                 // o incluso cerrar esta activity si el objetivo era solo conectar uno.
                 // Por ahora, solo un Toast para notificar.
-                Toast.makeText(this, "Actualmente conectado a ${getDeviceNameSafe(connectedDevice)}", Toast.LENGTH_SHORT).show()
+                // Toast.makeText(this, "Actualmente conectado a ${getDeviceNameSafe(connectedDevice)}", Toast.LENGTH_SHORT).show()
             }
-        }
-    }
-
-    private fun checkPermissionsAndStartScan() {
-        val missingPermissions = requiredPermissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (missingPermissions.isEmpty()) {
-            checkBluetoothAndStartScan()
-        } else {
-            requestPermissionsLauncher.launch(missingPermissions.toTypedArray())
         }
     }
 
@@ -225,36 +210,6 @@ class DeviceActivity : AppCompatActivity() {
         binding.buttonEscanear.isEnabled = false
 
         bluetoothViewModel.startScan() // Llama al método del ViewModel
-    }
-
-    private fun showPermissionDeniedDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("Permisos Requeridos")
-            .setMessage("Esta aplicación necesita permisos de Bluetooth y ubicación (en algunas versiones de Android) para escanear y conectarse a dispositivos Bluetooth. Por favor, otórguelos en la configuración de la aplicación.")
-            .setPositiveButton("Ir a Configuración") { _, _ ->
-                // Abrir la configuración de la app
-                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                val uri = Uri.fromParts("package", packageName, null)
-                intent.data = uri
-                startActivity(intent)
-            }
-            .setNegativeButton("Cancelar") { dialog, _ ->
-                dialog.dismiss()
-                // Puedes mostrar un mensaje indicando que la funcionalidad estará limitada.
-            }
-            .show()
-    }
-
-    // Función de utilidad para obtener el nombre del dispositivo de forma segura
-    private fun getDeviceNameSafe(device: BluetoothDevice?): String {
-        device?.let {
-            return if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
-                it.name ?: it.address
-            } else {
-                it.address // O "Nombre no disponible"
-            }
-        }
-        return "Dispositivo desconocido"
     }
 
     override fun onDestroy() {

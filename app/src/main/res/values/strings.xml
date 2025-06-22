@@ -1,22 +1,48 @@
 <resources>
     <string name="app_name">Pecus Track</string>
-    <string name="title_activity_maps">MapsActivity</string>
-    <string name="distancia">Distancia: %1$s</string>
-    <string name="ultima_conexion">: %1$s</string>
+
+    <!-- Descripciones y títulos -->
+    <string name="regresar">Regresar</string>
+    <string name="selecciona_dispositivo">Selecciona un dispositivo</string>
+    <string name="info_dispositivos">Información de los dispositivos</string>
+
+    <!-- Botones principales -->
+    <string name="agregar_area">Agregar área</string>
+    <string name="dispositivos_bluetooth">Dispositivos Bluetooth</string>
+    <string name="centrar_mapa">Centrar mapa</string>
+
+    <!-- FABs de edición -->
+    <string name="cancelar">Cancelar</string>
+    <string name="deshacer">Deshacer</string>
+    <string name="reiniciar">Reiniciar</string>
+    <string name="finalizar_edicion">Finalizar edición</string>
+
+    <!-- Información de dispositivos -->
     <string name="dispositivos_total">Número total de dispositivos: %1$d</string>
     <string name="dispositivos_activos">Dispositivos activos: %1$d</string>
     <string name="dispositivos_fuera_rango">Dispositivos fuera del área de pastoreo: %1$d</string>
+
+
+    <string name="title_activity_maps">MapsActivity</string>
+    <string name="distancia">Distancia: %1$s</string>
+    <string name="ultima_conexion">: %1$s</string>
+
     <string name="estado_del_dispositivo">Estado: %1$s</string>
     <string name="fab_edit">Editar Área %1$s</string>
-    <string name="fab_editing">Editando Área %1$s</string>
+    <string name="fab_editing">Editar Área %1$s</string>
     <string name="fab_add">Agregar Área</string>
     <string name="creando_nueva_area">Creando nueva área de pastoreo</string>
     <string name="editando_area_id">Editando Área %1$s</string>
     <string name="bluetooth_service_conectado">Dispositivo bluetooth conectado</string>
-    <string name="bluetooth_service_channel_name">ServicioBluetooth</string>
+    <string name="bluetooth_service_channel_name">Servicio Bluetooth</string>
     <string name="bluetooth_service_channel_description">Notificaciones del servicio bluetooth</string>
-    <string name="data_update_channel_name">ActualizacionesDispositivos</string>
+    <string name="data_update_channel_name">Actualizaciones de los Dispositivos de Ubicación</string>
     <string name="data_update_channel_description">Notificaciones sobre nuevos datos de dispositivos</string>
+    <string name="dialog_progress">Cargando</string>
+    <string name="estado_bluetooth">Estado del bluetooth: %1$s</string>
+    <string name="device_bluetooth_connected_to">Conectado a: %1$s</string>
+    <string name="device_bluetooth_disconnected">Desconectado</string>
+    <string name="device_disconnect_button_text">Desconectar</string>
 
     <string-array name="tipos_animal_nombres">
         <item>Vaca</item>

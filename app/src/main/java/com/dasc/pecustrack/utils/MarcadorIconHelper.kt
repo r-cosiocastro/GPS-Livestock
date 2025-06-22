@@ -30,9 +30,10 @@ object MarcadorIconHelper {
     private val COLOR_FUERA_AREA = "#e86a66".toColorInt() // Naranja claro
     private val COLOR_INACTIVO = "#bdbdbd".toColorInt() // Gris claro
 
-    // IDs de recursos para los iconos de estado (badges)
-    private val BADGE_FUERA_AREA = R.drawable.ic_alert_badge // Reemplaza con tu ID
-    private val BADGE_INACTIVO = R.drawable.ic_disconnected_badge // Reemplaza con tu ID
+    private val BADGE_FUERA_AREA = R.drawable.ic_alert_badge
+    private val BADGE_INACTIVO = R.drawable.ic_disconnected_badge
+    private val BADGE_FUERA_AREA_E_INACTIVO = R.drawable.ic_disconnected_inactive_badge
+    private val BADGE_ACTIVO = R.drawable.ic_connected
 
     private val cache = mutableMapOf<String, BitmapDescriptor>()
 
@@ -72,14 +73,28 @@ object MarcadorIconHelper {
         var colorTinte = COLOR_NORMAL
         var iconoInsigniaResId: Int? = null
 
-        if (!dispositivo.activo) {
-            colorTinte = COLOR_INACTIVO
-            iconoInsigniaResId = BADGE_INACTIVO
-        } else if (!dispositivo.dentroDelArea) {
-            colorTinte = COLOR_FUERA_AREA
-            iconoInsigniaResId = BADGE_FUERA_AREA
+        when {
+            !dispositivo.activo && !dispositivo.dentroDelArea -> {
+                // Inactivo y fuera del área
+                colorTinte = COLOR_INACTIVO
+                iconoInsigniaResId = BADGE_FUERA_AREA_E_INACTIVO
+            }
+            !dispositivo.activo && dispositivo.dentroDelArea -> {
+                // Inactivo pero dentro del área
+                colorTinte = COLOR_INACTIVO
+                iconoInsigniaResId = BADGE_INACTIVO
+            }
+            dispositivo.activo && !dispositivo.dentroDelArea -> {
+                // Activo pero fuera del área
+                colorTinte = COLOR_FUERA_AREA
+                iconoInsigniaResId = BADGE_FUERA_AREA
+            }
+            dispositivo.activo && dispositivo.dentroDelArea -> {
+                // Activo y dentro del área, no se usa insignia
+                colorTinte = COLOR_NORMAL
+                iconoInsigniaResId = BADGE_ACTIVO
+            }
         }
-        // Si está activo Y dentro del área, se usa COLOR_NORMAL y no hay iconoInsigniaResId
 
         return bitmapDescriptorFromVector(
             context = context,

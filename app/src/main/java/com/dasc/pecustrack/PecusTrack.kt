@@ -13,16 +13,14 @@ class PecusTrack : Application(){
         NotificationHelper.createNotificationChannel(
             applicationContext,
             NotificationHelper.BLUETOOTH_SERVICE_CHANNEL_ID,
-            getString(R.string.bluetooth_service_channel_name), // "Servicio Bluetooth"
+            getString(R.string.bluetooth_service_channel_name),
             getString(R.string.bluetooth_service_channel_description), // "Notificaciones del servicio Bluetooth"
-            NotificationManager.IMPORTANCE_LOW // O DEFAULT, para foreground services a veces LOW es mejor
         )
         NotificationHelper.createNotificationChannel(
             applicationContext,
             NotificationHelper.DATA_UPDATE_CHANNEL_ID,
-            getString(R.string.data_update_channel_name), // "Actualizaciones de Dispositivos"
+            getString(R.string.data_update_channel_name),
             getString(R.string.data_update_channel_description) // "Notificaciones sobre nuevos datos de dispositivos"
         )
-        // Crea otros canales que necesites
     }
 }

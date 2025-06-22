@@ -41,20 +41,11 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="${MAPS_API_KEY}" />
 
-        <activity
-            android:name=".ui.view.DeviceActivity"
+        <activity android:name=".ui.view.SplashView"
             android:exported="true"
-            android:label="Seleccionar Dispositivo Bluetooth"
-            android:theme="@style/Theme.PecusTrack"
+            android:theme="@style/Theme.PecusTrack.SplashScreen"
             android:screenOrientation="portrait"
             android:configChanges="keyboardHidden|orientation|screenSize">
-            <!-- Asegúrate que el tema sea el correcto -->
-            <!-- Puedes añadir un parent activity si es parte de un flujo -->
-            <!--
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value=".ui.view.MainActivity" />
-            -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -62,14 +53,22 @@
         </activity>
 
         <activity
+            android:name=".ui.view.DeviceActivity"
+            android:exported="true"
+            android:theme="@style/Theme.PecusTrack"
+            android:screenOrientation="portrait"
+            android:configChanges="keyboardHidden|orientation|screenSize">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".ui.view.MapsActivity" />
+
+        </activity>
+
+        <activity
             android:name=".ui.view.MapsActivity"
             android:exported="true"
             android:screenOrientation="portrait"
             android:configChanges="keyboardHidden|orientation|screenSize">
-
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value=".ui.view.MainActivity" />
 
             </activity>
         <activity

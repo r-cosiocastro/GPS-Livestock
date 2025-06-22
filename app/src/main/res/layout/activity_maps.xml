@@ -1,183 +1,237 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/root_container"
+    android:id="@+id/coordinatorLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".ui.view.MapsActivity">
+    android:layout_height="match_parent">
 
-<androidx.fragment.app.FragmentContainerView
-    xmlns:map="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/map"
-    android:name="com.google.android.gms.maps.SupportMapFragment"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent" />
-
-    <!-- superior -->
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/top_card"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        xmlns:tools="http://schemas.android.com/tools"
+        android:id="@+id/root_container"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:layout_gravity="top"
-        app:layout_constraintTop_toTopOf="parent"
-        app:cardCornerRadius="16dp"
-        app:cardElevation="8dp">
+        android:layout_height="match_parent"
+        tools:context=".ui.view.MapsActivity">
 
-    <LinearLayout
-        android:id="@+id/top_bar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp">
-
-        <ImageView
-            android:id="@+id/button_back"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:src="@drawable/ic_info"
-            android:contentDescription="Regresar"
-            app:tint="@color/md_theme_primary" />
-
-        <TextView
-            android:id="@+id/top_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:layout_marginStart="16dp"
-            android:text="Selecciona un dispositivo"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    </com.google.android.material.card.MaterialCardView>
-
-    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-        android:id="@+id/fabEditar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:text="Agregar área"
-        app:icon="@drawable/ic_add"
-        app:backgroundTint="?attr/colorSecondaryContainer"
-        app:iconTint="?attr/colorOnSecondaryContainer"
-    android:textColor="?attr/colorOnSecondaryContainer"
-    app:layout_constraintTop_toBottomOf="@id/top_card"
-    app:layout_constraintEnd_toEndOf="parent"/>
-
-    <LinearLayout
-        android:id="@+id/fabOpcionesEdicion"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:visibility="gone"
-        android:layout_margin="16dp"
-        app:layout_constraintTop_toBottomOf="@+id/fabEditar"
-        app:layout_constraintEnd_toEndOf="parent">
-
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fabDeshacer"
-            android:layout_marginBottom="8dp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:contentDescription="Deshacer"
-            android:src="@drawable/ic_undo"
-            app:backgroundTint="?attr/colorTertiaryContainer"
-            app:tint="?attr/colorOnTertiaryContainer" />
-
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fabReiniciar"
-            android:layout_marginBottom="8dp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:contentDescription="Reiniciar"
-            android:src="@drawable/ic_delete"
-            app:backgroundTint="?attr/colorErrorContainer"
-            app:tint="?attr/colorOnErrorContainer" />
-
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fabFinalizar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:contentDescription="Finalizar edición"
-            android:src="@drawable/ic_check"
-            app:backgroundTint="?attr/colorPrimary"
-            app:tint="?attr/colorOnPrimary"/>
-    </LinearLayout>
-
-    <Button
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:id="@+id/btnCentrar"
-        android:text="Centrar Mapa"
-        app:icon="@drawable/ic_zoom"
-        app:layout_constraintBottom_toTopOf="@id/bottom_card"
-        app:layout_constraintStart_toStartOf="@id/bottom_card"
-        android:visibility="gone">
-
-
-    </Button>
-
-
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/bottom_card"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:layout_margin="16dp"
-        app:cardCornerRadius="16dp"
-        app:cardElevation="8dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        android:visibility="invisible">
-
-    <LinearLayout
-        android:id="@+id/bottom_panel"
-        android:layout_width="match_parent"
-        android:layout_height="180dp"
-        android:orientation="vertical"
-        android:padding="16dp">
-
-    <TextView
-        android:id="@+id/text_title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Información de los dispositivos"
-        style="@style/TextAppearance.Material3.TitleLarge"/>
-
-        <com.google.android.material.divider.MaterialDivider
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/map"
+            android:name="com.google.android.gms.maps.SupportMapFragment"
             android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <!-- Top Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/top_card"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"/>
+            android:layout_margin="16dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="8dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <LinearLayout
+                android:id="@+id/top_bar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="12dp">
+
+                <ImageView
+                    android:id="@+id/top_icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:src="@drawable/ic_info"
+                    app:tint="?attr/colorPrimary"
+                    android:layout_gravity="center"
+                    android:foregroundGravity="center"/>
+
+                <TextView
+                    android:id="@+id/top_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginStart="16dp"
+                    android:text="@string/selecciona_dispositivo"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- FABs -->
+        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+            android:id="@+id/fabEditar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            android:text="@string/agregar_area"
+            android:textColor="?attr/colorOnSecondaryContainer"
+            app:backgroundTint="?attr/colorSecondaryContainer"
+            app:icon="@drawable/ic_add"
+            app:iconTint="?attr/colorOnSecondaryContainer"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/top_card" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnCentrar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            android:contentDescription="@string/centrar_mapa"
+            android:src="@drawable/ic_zoom"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/top_card"/>
 
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:id="@+id/fabOpcionesEdicion"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            android:gravity="end"
             android:orientation="vertical"
-            android:layout_weight="3"
-            android:layout_gravity="center"
-            android:paddingTop="8dp">
-            <TextView
-                android:id="@+id/text_total_dispositivos"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/dispositivos_total"
-                android:paddingTop="8dp" />
-            <TextView
-                android:id="@+id/text_dispositivos_activos"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/dispositivos_activos"
-                android:paddingTop="8dp" />
+            android:visibility="visible"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/fabEditar">
 
-            <TextView
-                android:id="@+id/text_dispositivos_fuera_rango"
-                android:layout_width="match_parent"
+            <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+                android:id="@+id/fabCancelar"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/dispositivos_fuera_rango"
-                android:paddingTop="8dp" />
+                android:layout_marginBottom="8dp"
+                android:text="@string/cancelar"
+                android:textColor="?attr/colorOnError"
+                app:backgroundTint="?attr/colorError"
+                app:icon="@drawable/ic_cancel"
+                app:iconTint="?attr/colorOnError" />
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/fabDeshacer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:contentDescription="@string/deshacer"
+                android:src="@drawable/ic_undo"
+                app:backgroundTint="?attr/colorTertiaryContainer"
+                app:tint="?attr/colorOnTertiaryContainer" />
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/fabReiniciar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:contentDescription="@string/reiniciar"
+                android:src="@drawable/ic_delete"
+                app:backgroundTint="?attr/colorErrorContainer"
+                app:tint="?attr/colorOnErrorContainer" />
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/fabFinalizar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/finalizar_edicion"
+                android:src="@drawable/ic_check"
+                app:backgroundTint="?attr/colorPrimary"
+                app:tint="?attr/colorOnPrimary" />
         </LinearLayout>
 
-    </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
-</androidx.constraintlayout.widget.ConstraintLayout>
+
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabBluetooth"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@string/dispositivos_bluetooth"
+        android:src="@drawable/ic_bluetooth_settings"
+        android:textColor="?attr/colorOnPrimaryContainer"
+        app:layout_anchor="@id/bottom_card_device_details"
+        app:layout_anchorGravity="top|end"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="56dp"
+        android:elevation="8dp" />
+
+        <!-- Bottom Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/bottom_card_device_details"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            android:layout_margin="8dp"
+            android:background="@color/cardview_light_background"
+            app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
+
+            <LinearLayout
+                android:id="@+id/bottom_panel"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- Agrega un "handle" visual -->
+                <View
+                    android:layout_width="40dp"
+                    android:layout_height="4dp"
+                    android:layout_gravity="center"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/drag_handle_bg" />
+
+                <TextView
+                    android:id="@+id/text_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Información de los dispositivos"
+                    style="@style/TextAppearance.Material3.TitleLarge" />
+
+                <!-- Contenido colapsable -->
+
+                <LinearLayout
+                    android:id="@+id/expanded_content"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <com.google.android.material.divider.MaterialDivider
+                        android:id="@+id/divider"
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="8dp"/>
+
+                    <TextView
+                        android:id="@+id/text_total_dispositivos"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/dispositivos_total" />
+
+                    <TextView
+                        android:id="@+id/text_dispositivos_activos"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/dispositivos_activos"
+                        android:paddingTop="8dp" />
+
+                    <TextView
+                        android:id="@+id/text_dispositivos_fuera_rango"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/dispositivos_fuera_rango"
+                        android:paddingTop="8dp" />
+
+                    <TextView
+                        android:id="@+id/text_estado_bluetooth"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/estado_bluetooth"
+                        android:paddingTop="8dp">
+
+                    </TextView>
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

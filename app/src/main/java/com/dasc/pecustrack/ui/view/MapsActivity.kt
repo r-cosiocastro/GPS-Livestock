@@ -2,9 +2,11 @@ package com.dasc.pecustrack.ui.view
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.graphics.Canvas
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
@@ -17,35 +19,32 @@ import androidx.activity.viewModels
 import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import androidx.core.graphics.createBitmap
-import androidx.core.graphics.get
-import androidx.core.graphics.set
-import androidx.core.splashscreen.SplashScreen
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.dasc.pecustrack.R
 import com.dasc.pecustrack.data.model.Dispositivo
 import com.dasc.pecustrack.data.model.Poligono
 import com.dasc.pecustrack.databinding.ActivityMapsBinding
 import com.dasc.pecustrack.location.LocationProviderImpl
+import com.dasc.pecustrack.services.BluetoothService
 import com.dasc.pecustrack.ui.viewmodel.MapsViewModel
 import com.dasc.pecustrack.ui.viewmodel.ModoEdicionPoligono
+import com.dasc.pecustrack.utils.LoadingDialog
 import com.dasc.pecustrack.utils.MarcadorIconHelper
 import com.dasc.pecustrack.utils.NotificationHelper
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.Polygon
 import com.google.android.gms.maps.model.PolygonOptions
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
@@ -73,12 +72,49 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
     private var idPoligonoResaltadoVisualmente: Int? = null
     private val marcadoresVertices = mutableListOf<Marker>()
 
-    private lateinit var splashScreen: SplashScreen
-    private val isMapReadyForSplash = AtomicBoolean(false) // Para quitar el splash
-    private val isMapFullyLoaded = AtomicBoolean(false)   // Para lógica post-carga
-
+    private lateinit var loadingDialog: LoadingDialog
+    private var currentToast: Toast? = null
 
     private val marcadoresVerticesActuales = mutableListOf<Marker>()
+
+    private val bluetoothServiceReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            currentToast?.cancel()
+            when (intent?.action) {
+                BluetoothService.ACTION_RECONNECT_ATTEMPTING -> {
+                    val deviceName = intent.getStringExtra(BluetoothService.EXTRA_DEVICE_NAME) ?: "dispositivo guardado"
+                    currentToast = Toast.makeText(applicationContext, "Reconectando a $deviceName...", Toast.LENGTH_SHORT)
+                    currentToast?.show()
+                    binding.textEstadoBluetooth.text = "Reconectando a $deviceName..."
+                }
+                BluetoothService.ACTION_CONNECTION_SUCCESSFUL -> {
+                    val deviceName = intent.getStringExtra(BluetoothService.EXTRA_DEVICE_NAME) ?: "Dispositivo"
+                    Log.d("MapsActivity", "Conexión exitosa a Bluetooth a $deviceName")
+                    currentToast = Toast.makeText(applicationContext, "Conectado a $deviceName", Toast.LENGTH_SHORT)
+                    currentToast?.show()
+                    binding.textEstadoBluetooth.text = "Conectado por bluetooth a $deviceName"
+                }
+                BluetoothService.ACTION_CONNECTION_FAILED -> {
+                    val deviceName = intent.getStringExtra(BluetoothService.EXTRA_DEVICE_NAME)
+                    val errorMsg = intent.getStringExtra(BluetoothService.EXTRA_ERROR_MESSAGE) // Asumiendo que envías esto
+                    val message = if (deviceName != null) {
+                        "Conexión a $deviceName fallida." + (if(errorMsg != null) " ($errorMsg)" else "")
+                    } else {
+                        "Conexión a Bluetooth fallida." + (if(errorMsg != null) " ($errorMsg)" else "")
+                    }
+                    currentToast = Toast.makeText(applicationContext, message, Toast.LENGTH_LONG)
+                    currentToast?.show()
+                    binding.textEstadoBluetooth.text = "Desconectado"
+                }
+                BluetoothService.ACTION_DEVICE_DISCONNECTED -> {
+                    val deviceName = intent.getStringExtra(BluetoothService.EXTRA_DEVICE_NAME) ?: "Dispositivo"
+                    currentToast = Toast.makeText(applicationContext, "$deviceName desconectado", Toast.LENGTH_SHORT)
+                    currentToast?.show()
+                    binding.textEstadoBluetooth.text = "Desconectado"
+                }
+            }
+        }
+    }
 
     private val locationPermissionRequest = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -99,15 +135,46 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        val filter = IntentFilter().apply {
+            addAction(BluetoothService.ACTION_RECONNECT_ATTEMPTING)
+            addAction(BluetoothService.ACTION_CONNECTION_SUCCESSFUL)
+            addAction(BluetoothService.ACTION_CONNECTION_FAILED)
+            addAction(BluetoothService.ACTION_DEVICE_DISCONNECTED)
+        }
+        LocalBroadcastManager.getInstance(this).registerReceiver(bluetoothServiceReceiver, filter)
+    }
 
-
+    override fun onStop() {
+        super.onStop()
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(bluetoothServiceReceiver)
+        currentToast?.cancel()
+    }
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     override fun onCreate(savedInstanceState: Bundle?) {
-        splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         binding = ActivityMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        loadingDialog = LoadingDialog(this@MapsActivity)
+        loadingDialog.showLoadingDialog("Cargando mapa", R.raw.cow)
+
+        Intent(this, BluetoothService::class.java).also { serviceIntent ->
+            startService(serviceIntent) // Asegura que el servicio se inicie y pueda vivir más allá de la Activity
+            // bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE) // Si necesitas interacción directa
+        }
+
+        binding.fabBluetooth.setOnClickListener {
+            startActivity(Intent(this, DeviceActivity::class.java))
+        }
+
+        val bottomSheet = binding.bottomCardDeviceDetails
+        val behavior = BottomSheetBehavior.from(bottomSheet)
+        behavior.peekHeight = 180  // Ajusta según prefieras, 120dp es razonable para solo ver título y el handle
+        behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+
         val not = NotificationHelper.createBasicNotification(
             this,
             NotificationHelper.BLUETOOTH_SERVICE_CHANNEL_ID,
@@ -117,20 +184,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
 
         NotificationHelper.showNotification(this, NotificationHelper.BLUETOOTH_SERVICE_NOTIFICATION_ID, not)
 
-        Log.d("MapsActivitySplash", "onCreate: Splash screen instalado.")
-
-        splashScreen.setKeepOnScreenCondition {
-            val keep = !isMapReadyForSplash.get()
-            Log.d("MapsActivitySplash", "setKeepOnScreenCondition: keep? $keep (isMapReadyForSplash: ${isMapReadyForSplash.get()})")
-            keep
-        }
-
         configurarObservadoresViewModel()
         configurarListenersUI()
 
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
-        Log.d("MapsActivitySplash", "onCreate: getMapAsync llamado.")
 
 
         lifecycleScope.launch {
@@ -167,14 +225,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
             )
         }
 
-        viewModel.insertarDispositivosEjemplo()
+        // viewModel.insertarDispositivosEjemplo()
 
     }
 
     private fun configurarObservadoresViewModel() {
 
         viewModel.distanciaTexto.observe(this) { texto ->
-            binding.topText.text = texto
+            // binding.topText.text = texto
         }
 
         lifecycleScope.launch { // Necesitas un scope de corrutina
@@ -192,10 +250,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
                 }
             }
         }
-
-
-
-
     }
 
     private fun actualizarVisualizacionPoligonoYVertices() {
@@ -244,7 +298,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         puntos.forEachIndexed { index, latLng ->
             val markerOptions = MarkerOptions()
                 .position(latLng)
-                .draggable(modo == ModoEdicionPoligono.EDITANDO)
+                .draggable(modo == ModoEdicionPoligono.EDITANDO || modo == ModoEdicionPoligono.CREANDO)
                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
                 .anchor(0.5f, 0.5f)
 
@@ -293,12 +347,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
 
             if (modoActual == ModoEdicionPoligono.NINGUNO) {
                 if (idSeleccionado != null) {
-                    // Si hay un polígono seleccionado, y el modo es NINGUNO,
-                    // pasa a modo de edición de puntos para ESE polígono.
                     viewModel.iniciarEdicionPuntosPoligonoSeleccionado()
                 } else {
-                    // No hay polígono seleccionado, y modo NINGUNO,
-                    // inicia la creación de un nuevo polígono.
                     viewModel.iniciarModoCreacionPoligono()
                 }
             }
@@ -308,6 +358,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
             Log.d("MapsActivity", "Finalizando polígono actual")
             viewModel.guardarPoligonoEditadoActual()
             actualizarUiPorModoEdicion(viewModel.modoEdicionPoligono.value, viewModel.poligonoSeleccionadoId.value)
+            viewModel.verificarEstadoDispositivos()
         }
 
         binding.fabReiniciar.setOnClickListener {
@@ -331,29 +382,20 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         }
 
         // (Opcional) Un botón de cancelar explícito si fabEditar no cumple esa función
-        // binding.fabCancelarEdicion.setOnClickListener {
-        //     viewModel.cancelarCreacionEdicionPoligono()
-        // }
+        binding.fabCancelar.setOnClickListener {
+            viewModel.cancelarCreacionEdicionPoligono()
+        }
     }
 
     override fun onMapLoaded() {
-        isMapFullyLoaded.set(true)
-        Log.d("MapsActivitySplash", "onMapLoaded: ¡El mapa ha cargado completamente sus tiles! (isMapFullyLoaded: true)")
-        // La condición en setKeepOnScreenCondition ahora evaluará a 'false'
-        // y el splash screen se ocultará, revelando el mapa.
-
-        // Aquí puedes realizar otras acciones que dependan de que el mapa esté completamente visible.
+        loadingDialog.dismiss()
     }
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     @SuppressLint("PotentialBehaviorOverride")
     override fun onMapReady(map: GoogleMap) {
         this@MapsActivity.googleMap = map
-        Log.d("MapsActivitySplash", "onMapReady: El mapa está listo.")
         map.setOnMapLoadedCallback(this)
-        // El mapa está listo, podemos permitir que el splash se vaya.
-        isMapReadyForSplash.set(true)
-        Log.d("MapsActivitySplash", "onMapReady: isMapReadyForSplash SET TO TRUE. Splash debería irse pronto.")
 
         googleMap.setMapStyle(
             com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(
@@ -363,10 +405,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         )
 
         map.isMyLocationEnabled = true
-        map.uiSettings.isZoomControlsEnabled = true
-        map.uiSettings.isCompassEnabled = true
-        map.uiSettings.isMapToolbarEnabled = true
-        map.uiSettings.isMyLocationButtonEnabled = true
 
 
         val posicionDefault = LatLng(24.1426, -110.3128) // La Paz, BCS
@@ -424,14 +462,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         map.setOnMarkerDragListener(object : GoogleMap.OnMarkerDragListener {
             override fun onMarkerDragStart(marker: Marker) {
                 val tag = marker.tag as? String
-                if (tag != null && tag.startsWith("vertice_") && viewModel.modoEdicionPoligono.value == ModoEdicionPoligono.EDITANDO) {
+                if (tag != null && tag.startsWith("vertice_") && viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO) {
                     Log.d("MapsActivity_Drag", "onMarkerDragStart: Vértice $tag")
                     // Opcional: Cambiar apariencia
                 }
             }
 
             override fun onMarkerDrag(marker: Marker) {
-                if (viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.EDITANDO) return
+                if (viewModel.modoEdicionPoligono.value == ModoEdicionPoligono.NINGUNO) return
 
                 Log.d("MapsActivity_Drag", "onMarkerDrag: Marker ID: ${marker.id}, Position: ${marker.position}, Tag: ${marker.tag}")
 
@@ -452,7 +490,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
             }
 
             override fun onMarkerDragEnd(marker: Marker) {
-                if (viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.EDITANDO) return
+                if (viewModel.modoEdicionPoligono.value == ModoEdicionPoligono.NINGUNO) return
 
                 val tag = marker.tag as? String
                 if (tag != null && tag.startsWith("vertice_")) {
@@ -507,8 +545,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
                     .show()
                 return@setOnMarkerClickListener true // Evento consumido
             }
-
-
             return@setOnMarkerClickListener false // No consumido, deja que otros listeners actúen si es necesario
         }
 
@@ -608,8 +644,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
                 actualizarMarcadoresDeVerticesVisual(viewModel.puntosPoligonoActualParaDibujar.value, modo)
                 binding.fabOpcionesEdicion.visibility = View.VISIBLE
                 binding.fabEditar.visibility = View.GONE
-                binding.topText.text = getString(R.string.creando_nueva_area) // Usa string resources
-                desresaltarPoligonoExistenteSiHay() // Desde tu código original
+                binding.topText.text = getString(R.string.creando_nueva_area)
+                desresaltarPoligonoExistenteSiHay()
+                binding.fabDeshacer.visibility = View.VISIBLE
             }
             ModoEdicionPoligono.EDITANDO -> {
                 actualizarMarcadoresDeVerticesVisual(
@@ -618,6 +655,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
                 binding.fabOpcionesEdicion.visibility = View.VISIBLE
                 binding.fabEditar.visibility = View.GONE
                 binding.topText.text = getString(R.string.editando_area_id, viewModel.poligonoSeleccionadoId.value?.toString() ?: "")
+                binding.fabDeshacer.visibility = View.GONE
             }
         }
     }
@@ -699,46 +737,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         bottomSheet.show(supportFragmentManager, "DispositivoBottomSheet")
     }
 
-    fun bitmapDescriptorFromVector(
-        context: Context,
-        vectorResId: Int,
-        scale: Float = 1f,
-        grayscale: Boolean = false
-    ): BitmapDescriptor? {
-        val vectorDrawable = ContextCompat.getDrawable(context, vectorResId) ?: return null
-        vectorDrawable.setBounds(
-            0,
-            0,
-            vectorDrawable.intrinsicWidth * scale.toInt(),
-            vectorDrawable.intrinsicHeight * scale.toInt()
-        )
-        val bitmap = createBitmap(
-            vectorDrawable.intrinsicWidth * scale.toInt(),
-            vectorDrawable.intrinsicHeight * scale.toInt()
-        )
-        if (grayscale) {
-            val canvas = Canvas(bitmap)
-            vectorDrawable.draw(canvas)
-            // Convert to grayscale
-            for (x in 0 until bitmap.width) {
-                for (y in 0 until bitmap.height) {
-                    val pixel = bitmap[x, y]
-                    val r = (pixel shr 16 and 0xff) * 0.3
-                    val g = (pixel shr 8 and 0xff) * 0.59
-                    val b = (pixel and 0xff) * 0.11
-                    val gray = (r + g + b).toInt()
-                    bitmap[x, y] =
-                        (pixel and 0xff000000.toInt()) or (gray shl 16) or (gray shl 8) or gray
-                }
-            }
-        } else {
-            vectorDrawable.draw(Canvas(bitmap))
-        }
-        return BitmapDescriptorFactory.fromBitmap(bitmap)
-    }
-
     private fun centrarMapa() {
-        if (!centrarMapa || viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO) return
+        if (!centrarMapa || viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO || !::googleMap.isInitialized) return
 
         val bounds = viewModel.obtenerBoundsParaMapa() ?: return
 
@@ -794,8 +794,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
 
     override fun onPause() {
         super.onPause()
+        // handler.removeCallbacks(checkDispositivosRunnable)
+        // viewModel.detenerActualizacionesDeUbicacionUsuario()
+    }
+
+    override fun onDestroy() {
         handler.removeCallbacks(checkDispositivosRunnable)
         viewModel.detenerActualizacionesDeUbicacionUsuario()
+        super.onDestroy()
+
     }
 
 

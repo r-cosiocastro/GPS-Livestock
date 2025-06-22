@@ -23,7 +23,7 @@ class PoligonoEditorManager @Inject constructor() {
 
 
     fun actualizarPuntoPoligonoActual(indice: Int, nuevaPosicion: LatLng) {
-        if (_modoEdicion.value != ModoEdicionPoligono.EDITANDO && _modoEdicion.value != ModoEdicionPoligono.CREANDO) {
+        if (_modoEdicion.value == ModoEdicionPoligono.NINGUNO) {
             Log.w("PoligonoEditorManager", "actualizarPuntoPoligonoActual: Ignorado, no en modo edición (${_modoEdicion.value})")
             return
         }
