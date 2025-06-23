@@ -16,23 +16,25 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Binder
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.ParcelUuid
 import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.app.ActivityCompat
 import androidx.core.content.edit
-import com.dasc.pecustrack.data.model.Dispositivo
-import com.dasc.pecustrack.data.repository.DispositivoRepository
+import com.dasc.pecustrack.data.model.Rastreador
+import com.dasc.pecustrack.data.repository.RastreadorRepository
+import com.dasc.pecustrack.ui.adapter.BleDevice
 import com.dasc.pecustrack.utils.AppPreferences
 import com.dasc.pecustrack.utils.NotificationHelper
-import com.dasc.pecustrack.utils.parcelable
+import com.dasc.pecustrack.utils.NotificationHelper.DATA_UPDATE_CHANNEL_ID
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,81 +49,55 @@ class BluetoothService : Service() {
     @Inject
     lateinit var bluetoothStateManager: BluetoothStateManager
 
-    private lateinit var bluetoothManager: BluetoothManager
-    private lateinit var bluetoothAdapter: BluetoothAdapter
-
-    // Componentes para BLE
-    private var bluetoothLeScanner: BluetoothLeScanner? = null
-    private var bleScanCallback: ScanCallback? = null
-    private var bluetoothGatt: BluetoothGatt? = null
-    private val connectedBleDevices =
-        mutableMapOf<String, BluetoothGatt>() // Para manejar múltiples conexiones BLE si es necesario
-
-
     companion object {
-        const val ACTION_START_BLE_SCAN = "com.dasc.pecustrack.ACTION_START_BLE_SCAN"
-        const val ACTION_STOP_BLE_SCAN = "com.dasc.pecustrack.ACTION_STOP_BLE_SCAN"
         const val ACTION_CONNECT_BLE = "com.dasc.pecustrack.ACTION_CONNECT_BLE"
         const val ACTION_DISCONNECT_BLE = "com.dasc.pecustrack.ACTION_DISCONNECT_BLE"
-        const val ACTION_BLE_DATA_AVAILABLE = "com.dasc.pecustrack.ACTION_BLE_DATA_AVAILABLE"
-
-        const val EXTRA_BLE_CHARACTERISTIC_UUID =
-            "com.dasc.pecustrack.EXTRA_BLE_CHARACTERISTIC_UUID"
-        const val EXTRA_BLE_DATA_VALUE = "com.dasc.pecustrack.EXTRA_BLE_DATA_VALUE"
-        const val EXTRA_BLE_DATA_STRING = "com.dasc.pecustrack.EXTRA_BLE_DATA_STRING"
-
-        const val ACTION_RECONNECT_ATTEMPTING = "com.dasc.pecustrack.ACTION_RECONNECT_ATTEMPTING"
-        const val ACTION_CONNECTION_SUCCESSFUL = "com.dasc.pecustrack.ACTION_CONNECTION_SUCCESSFUL"
-        const val ACTION_CONNECTION_FAILED = "com.dasc.pecustrack.ACTION_CONNECTION_FAILED"
-        const val EXTRA_DEVICE_NAME = "com.dasc.pecustrack.EXTRA_DEVICE_NAME"
         const val ACTION_REQUEST_CURRENT_STATUS =
             "com.dasc.pecustrack.ACTION_REQUEST_CURRENT_STATUS"
 
 
         const val ACTION_START_SCAN = "com.dasc.pecustrack.ACTION_START_SCAN"
         const val ACTION_STOP_SCAN = "com.dasc.pecustrack.ACTION_STOP_SCAN"
-        const val ACTION_CONNECT = "com.dasc.pecustrack.ACTION_CONNECT"
-        const val ACTION_DISCONNECT = "com.dasc.pecustrack.ACTION_DISCONNECT"
-
-        // ...
-        const val ACTION_DEVICE_FOUND = "com.dasc.pecustrack.ACTION_DEVICE_FOUND"
-        const val ACTION_STATUS_CHANGED = "com.dasc.pecustrack.ACTION_STATUS_CHANGED"
-        const val ACTION_DATA_RECEIVED = "com.dasc.pecustrack.ACTION_DATA_RECEIVED"
-        const val ACTION_DEVICE_CONNECTED_INFO = "com.dasc.pecustrack.ACTION_DEVICE_CONNECTED_INFO"
-
-        const val EXTRA_DEVICE = "com.dasc.pecustrack.EXTRA_DEVICE"
         const val EXTRA_DEVICE_ADDRESS = "com.dasc.pecustrack.EXTRA_DEVICE_ADDRESS"
-        const val EXTRA_STATUS = "com.dasc.pecustrack.EXTRA_STATUS"
-        const val EXTRA_DATA_ID = "com.dasc.pecustrack.EXTRA_DATA_ID"
-        const val EXTRA_DATA_LAT = "com.dasc.pecustrack.EXTRA_DATA_LAT"
-        const val EXTRA_DATA_LON = "com.dasc.pecustrack.EXTRA_DATA_LON"
-
-        const val EXTRA_ERROR_MESSAGE = "com.dasc.pecustrack.EXTRA_ERROR_MESSAGE"
-        const val ACTION_DEVICE_DISCONNECTED = "com.dasc.pecustrack.ACTION_DEVICE_DISCONNECTED"
 
         private const val NOTIFICATION_CHANNEL_ID = "BluetoothServiceChannel"
         private const val NOTIFICATION_ID = 1
 
-        private const val SERVICE_UUID_STRING = "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-        private const val CHARACTERISTIC_UUID_STRING = "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+        private val SERVICE_UUID_STRING = UUID.fromString("4fafc201-1fb5-459e-8fcc-c5c9c331914b")
+        private val CHARACTERISTIC_UUID_STRING = UUID.fromString("beb5483e-36e1-4688-b7f5-ea07361b26a8")
         private val CCCD_UUID =
             UUID.fromString("00002902-0000-1000-8000-00805f9b34fb") // UUID del Client Characteristic Configuration Descriptor
 
     }
+
+    private lateinit var bluetoothManager: BluetoothManager
+    private lateinit var bluetoothAdapter: BluetoothAdapter
+
+    // Componentes para BLE
+    private var bluetoothLeScanner: BluetoothLeScanner? = null
+    private var bluetoothGatt: BluetoothGatt? = null
+    private val connectedBleDevices =
+        mutableMapOf<String, BluetoothGatt>() // Para manejar múltiples conexiones BLE si es necesario
+
+    private val binder = LocalBinder()
+    private var connectedGatt: BluetoothGatt? = null
+    private var currentDeviceAddress: String? = null
+    private var currentDeviceName: String? = null // Almacenar el nombre resuelto aquí
+
 
     private var isAttemptingAutoReconnect: Boolean = false
     private var lastAttemptedDeviceNameForToast: String? = null
     private var lastAttemptedDeviceAddressForAutoReconnect: String? =
         null // Para saber qué dispositivo estamos reconectando
 
-    private val discoveredDevices = mutableListOf<BluetoothDevice>()
+    private val discoveredDevicesList = mutableListOf<BleDevice>()
     private val scanHandler = Handler(Looper.getMainLooper())
-    private val SCAN_PERIOD: Long = 10000 // 10 segundos
     private var isScanning = false
+    private val SCAN_PERIOD: Long = 15000 // 15 segundos
 
     // Inyectar el repositorio
     @Inject
-    lateinit var dispositivoRepository: DispositivoRepository
+    lateinit var rastreadorRepository: RastreadorRepository
 
     @Inject
     lateinit var notificationHelper: NotificationHelper // Asumiendo que también lo inyectas o lo tienes como object
@@ -131,78 +107,229 @@ class BluetoothService : Service() {
     private val serviceScope =
         CoroutineScope(Dispatchers.IO + serviceJob) // Usa Dispatchers.IO para DB ops
 
+    private fun startBleScanWithPermissionCheck() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                Log.e("BluetoothService_SCAN", "Permiso BLUETOOTH_SCAN no concedido (API 31+). No se puede escanear.")
+                bluetoothStateManager.postScanFailed(ScanCallback.SCAN_FAILED_INTERNAL_ERROR) // O un código de error personalizado
+                return
+            }
+        } else { // Para API < 31, ACCESS_FINE_LOCATION es el crítico para resultados, BLUETOOTH/BLUETOOTH_ADMIN para iniciar.
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED ) { // BLUETOOTH_ADMIN para iniciar discovery
+                Log.e("BluetoothService_SCAN", "Permisos de ubicación o Bluetooth Admin no concedidos (API < 31). No se puede escanear.")
+                bluetoothStateManager.postScanFailed(ScanCallback.SCAN_FAILED_INTERNAL_ERROR)
+                return
+            }
+        }
+        // Aquí llamas a la función que tiene la anotación si es necesario o directamente el código
+        actuallyStartBleScan()
+    }
 
-    // Para escaneo BLE
-    private lateinit var bleScanner: BluetoothLeScanner
+    private fun actuallyStartBleScan() {
+        if (!bluetoothAdapter.isEnabled || bluetoothLeScanner == null) {
+            Log.w("BluetoothService_SCAN", "Bluetooth no habilitado o scanner nulo. No se puede escanear.")
+            bluetoothStateManager.postScanFailed(ScanCallback.SCAN_FAILED_INTERNAL_ERROR)
+            return
+        }
+        if (isScanning) {
+            Log.d("BluetoothService_SCAN", "El escaneo ya está en progreso.")
+            return
+        }
+        discoveredDevicesList.clear()
+        bluetoothStateManager.postScanResults(emptyList()) // Notifica UI
+        bluetoothStateManager.postScanStarted() // Nuevo evento para indicar que el escaneo comenzó
+
+        val scanFilters = listOf(ScanFilter.Builder().setServiceUuid(ParcelUuid.fromString(SERVICE_UUID_STRING.toString())).build()) // Ajusta
+        val scanSettings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
+
+        Log.i("BluetoothService_SCAN", "Iniciando escaneo BLE...")
+        try {
+            // La llamada real que necesita el permiso BLUETOOTH_SCAN (implícitamente por el contexto)
+            bluetoothLeScanner?.startScan(scanFilters, scanSettings, bleScanCallback)
+            isScanning = true
+            scanHandler.postDelayed({
+                if (isScanning) {
+                    stopBleScanWithPermissionCheck() // Detener con verificación de permisos
+                }
+            }, SCAN_PERIOD)
+        } catch (e: SecurityException) {
+            Log.e("BluetoothService_SCAN", "SecurityException al iniciar escaneo: ${e.message}", e)
+            bluetoothStateManager.postScanFailed(ScanCallback.SCAN_FAILED_INTERNAL_ERROR)
+            isScanning = false
+        }  catch (e: IllegalStateException) {
+            Log.e("BluetoothService_SCAN", "IllegalStateException al iniciar escaneo (Bluetooth podría estar apagado): ${e.message}", e)
+            bluetoothStateManager.postScanFailed(ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED) // O similar
+            isScanning = false
+        }
+    }
+
+    private fun stopBleScanWithPermissionCheck() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                Log.e("BluetoothService_SCAN", "Permiso BLUETOOTH_SCAN no concedido (API 31+). No se puede detener explícitamente el escaneo, pero se detendrá por timeout o al cerrar.")
+                // No se puede llamar a stopScan sin el permiso, pero el escaneo se detendrá.
+                // Podrías no hacer nada aquí si el permiso no está, ya que el timeout lo manejará
+                // o al cerrar la app. O simplemente loggear.
+                // Si isScanning es true, el timeout lo manejará.
+                // Si la UI lo pide explícitamente pero no hay permiso, es una situación extraña.
+                if (isScanning) { // Si realmente estaba escaneando, notificar que se detuvo (aunque sea por no poder llamar a la API)
+                    isScanning = false // Asumir que se detendrá o ya se detuvo
+                    bluetoothStateManager.postScanStopped()
+                }
+                return
+            }
+        }
+        // Para API < 31, no hay un permiso específico para stopScan que no sea BLUETOOTH_ADMIN que se usó para iniciar.
+        actuallyStopBleScan()
+    }
+
+    private fun actuallyStopBleScan() {
+        if (isScanning && bluetoothLeScanner != null) {
+            Log.i("BluetoothService_SCAN", "Deteniendo escaneo BLE.")
+            try {
+                bluetoothLeScanner?.stopScan(bleScanCallback)
+            } catch (e: SecurityException) {
+                Log.e("BluetoothService_SCAN", "SecurityException al detener escaneo: ${e.message}", e)
+            } catch (e: IllegalStateException) {
+                Log.e("BluetoothService_SCAN", "IllegalStateException al detener escaneo (Bluetooth podría estar apagado): ${e.message}", e)
+            }
+            isScanning = false
+            bluetoothStateManager.postScanStopped()
+        }
+        scanHandler.removeCallbacksAndMessages(null)
+    }
+
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
-    private val scanCallback = object : ScanCallback() {
-        @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private val bleScanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             super.onScanResult(callbackType, result)
             val device = result.device
-            // Anteriormente, podrías haber enviado un broadcast aquí por cada dispositivo
-            // Ahora, actualizaremos una lista y la enviaremos, o actualizaremos StateManager de otra forma.
+            var deviceName: String? = null
 
-            // Lógica para añadir a una lista temporal y luego postearla:
-            if (!discoveredDevices.map { it.address }.contains(device.address)) {
-                Log.d("BluetoothService_SCAN", "Dispositivo encontrado: ${device.name ?: "Desconocido"} (${device.address})")
-                discoveredDevices.add(device)
-                // Actualizar StateManager con la lista completa (o una copia)
-                bluetoothStateManager.postScanResults(ArrayList(discoveredDevices)) // Envía una copia
+            // --- LÓGICA PARA OBTENER NOMBRE DEL DISPOSITIVO (¡DENTRO DEL SERVICIO!) ---
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (ActivityCompat.checkSelfPermission(
+                        this@BluetoothService,
+                        Manifest.permission.BLUETOOTH_CONNECT
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    try {
+                        deviceName = device.name
+                    } catch (e: SecurityException) {
+                        Log.w(
+                            "BluetoothService_SCAN",
+                            "onScanResult: SecEx para device.name API31+",
+                            e
+                        )
+                    }
+                } else {
+                    Log.w(
+                        "BluetoothService_SCAN",
+                        "onScanResult: Sin permiso BLUETOOTH_CONNECT para device.name API31+"
+                    )
+                }
+            } else { // API < 31
+                if (ActivityCompat.checkSelfPermission(
+                        this@BluetoothService,
+                        Manifest.permission.BLUETOOTH
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) { // BLUETOOTH para device.name en APIs antiguas
+                    try {
+                        deviceName = device.name
+                    } catch (e: SecurityException) {
+                        Log.w(
+                            "BluetoothService_SCAN",
+                            "onScanResult: SecEx para device.name API<31",
+                            e
+                        )
+                    }
+                } else {
+                    Log.w(
+                        "BluetoothService_SCAN",
+                        "onScanResult: Sin permiso BLUETOOTH para device.name API<31"
+                    )
+                }
             }
+            // --- FIN DE LÓGICA PARA OBTENER NOMBRE ---
+
+            val existingDeviceIndex =
+                discoveredDevicesList.indexOfFirst { it.address == device.address }
+            if (existingDeviceIndex == -1) {
+                if (deviceName != null || result.scanRecord?.deviceName != null) { // Filtrar dispositivos sin nombre si se desea
+                    Log.d(
+                        "BluetoothService_SCAN",
+                        "Nuevo dispositivo: ${deviceName ?: result.scanRecord?.deviceName} (${device.address}) RSSI: ${result.rssi}"
+                    )
+                    discoveredDevicesList.add(
+                        BleDevice(
+                            device,
+                            deviceName ?: result.scanRecord?.deviceName,
+                            device.address
+                        )
+                    )
+                }
+            } else { // Dispositivo ya existe, quizás actualizar RSSI o si el nombre se resolvió ahora
+                val existing = discoveredDevicesList[existingDeviceIndex]
+                if (existing.resolvedName == null && (deviceName != null || result.scanRecord?.deviceName != null)) {
+                    discoveredDevicesList[existingDeviceIndex] = BleDevice(
+                        device,
+                        deviceName ?: result.scanRecord?.deviceName,
+                        device.address /*, result.rssi*/
+                    )
+                } else {
+                    // Opcional: solo actualizar si el RSSI cambió significativamente, etc.
+                    // Para evitar muchos updates, podrías no hacer nada aquí o solo actualizar RSSI en el objeto existente.
+                }
+            }
+            bluetoothStateManager.postScanResults(ArrayList(discoveredDevicesList)) // Enviar copia
         }
 
         override fun onBatchScanResults(results: List<ScanResult>) {
             super.onBatchScanResults(results)
-            Log.d("BluetoothService_SCAN", "Resultados de escaneo por lotes recibidos: ${results.size} dispositivos")
+            var changed = false
             results.forEach { result ->
                 val device = result.device
-                if (!discoveredDevices.map { it.address }.contains(device.address)) {
-                    discoveredDevices.add(device)
+                var deviceName: String? = null
+                // --- LÓGICA PARA OBTENER NOMBRE (similar a onScanResult) ---
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (ActivityCompat.checkSelfPermission(
+                            this@BluetoothService,
+                            Manifest.permission.BLUETOOTH_CONNECT
+                        ) == PackageManager.PERMISSION_GRANTED
+                    ) {
+                        try {
+                            deviceName = device.name
+                        } catch (e: SecurityException) { /* log */
+                        }
+                    }
+                } else {
+                    if (ActivityCompat.checkSelfPermission(
+                            this@BluetoothService,
+                            Manifest.permission.BLUETOOTH
+                        ) == PackageManager.PERMISSION_GRANTED
+                    ) {
+                        try {
+                            deviceName = device.name
+                        } catch (e: SecurityException) { /* log */
+                        }
+                    }
+                }
+                // --- FIN ---
+                if (!discoveredDevicesList.any { it.address == device.address }) {
+                    if (deviceName != null || result.scanRecord?.deviceName != null) {
+                        discoveredDevicesList.add(
+                            BleDevice(
+                                device,
+                                deviceName ?: result.scanRecord?.deviceName,
+                                device.address
+                            )
+                        )
+                        changed = true
+                    }
                 }
             }
-            bluetoothStateManager.postScanResults(ArrayList(discoveredDevices)) // Envía una copia
-        }
-
-        override fun onScanFailed(errorCode: Int) {
-            super.onScanFailed(errorCode)
-            Log.e("BluetoothService_SCAN", "Fallo en el escaneo BLE: $errorCode")
-            isScanning = false
-            // Anteriormente: sendBroadcast(Intent(ACTION_SCAN_FAILED).putExtra(EXTRA_SCAN_ERROR_CODE, errorCode))
-            bluetoothStateManager.postScanFailed(errorCode)
-            bluetoothStateManager.postScanStopped() // También indica que se detuvo
-        }
-    }
-
-    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
-    private fun initBleScanCallback() {
-        bleScanCallback = object : ScanCallback() {
-            @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT) // Necesario para device.name
-            override fun onScanResult(callbackType: Int, result: ScanResult) {
-                super.onScanResult(callbackType, result)
-                val device = result.device
-                Log.d(
-                    "BluetoothService_BLE",
-                    "Dispositivo BLE encontrado: ${device.name ?: device.address} RSSI: ${result.rssi}"
-                )
-            }
-
-            @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-            override fun onBatchScanResults(results: List<ScanResult>) {
-                super.onBatchScanResults(results)
-                for (result in results) {
-                    val device = result.device
-                    Log.d(
-                        "BluetoothService_BLE",
-                        "Dispositivo BLE (batch) encontrado: ${device.name ?: device.address}"
-                    )
-                }
-            }
-
-            override fun onScanFailed(errorCode: Int) {
-                super.onScanFailed(errorCode)
-                Log.e("BluetoothService_BLE", "Error en el escaneo BLE: $errorCode")
-            }
+            if (changed) bluetoothStateManager.postScanResults(ArrayList(discoveredDevicesList))
         }
     }
 
@@ -232,6 +359,7 @@ class BluetoothService : Service() {
         super.onCreate()
         bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
+
         if (bluetoothAdapter.isEnabled) { // Solo inicializar si el BT está ON
             bluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner
         }
@@ -240,114 +368,56 @@ class BluetoothService : Service() {
 
     @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d("BluetoothService", "onStartCommand: Servicio iniciado con intent: $intent")
-        val notificationText = "Servicio Bluetooth en ejecución..."
-        val notification =
-            NotificationHelper.createBluetoothServiceNotification(this, notificationText)
-        startForeground(NotificationHelper.BLUETOOTH_SERVICE_NOTIFICATION_ID, notification)
+        val action = intent?.action
+        Log.d("BluetoothService_LIFECYCLE", "onStartCommand, Action: $action")
 
-        if (intent?.action == null && !isServiceConnectedToDevice()) { // Si el servicio se inicia sin acción y no hay conexión activa
-            val sharedPrefs = getSharedPreferences(AppPreferences.PREFS_NAME, MODE_PRIVATE)
-            val lastDeviceAddress =
-                sharedPrefs.getString(AppPreferences.KEY_LAST_CONNECTED_BLE_DEVICE_ADDRESS, null)
-
-
-            if (lastDeviceAddress != null) {
-                var nameForInitialToast =
-                    sharedPrefs.getString(AppPreferences.KEY_LAST_CONNECTED_BLE_DEVICE_NAME, null)
-                if (nameForInitialToast == null) { // Si no hay nombre guardado, intenta obtenerlo del sistema (puede ser null)
-                    if (ActivityCompat.checkSelfPermission(
-                            this,
-                            Manifest.permission.BLUETOOTH_CONNECT
-                        ) == PackageManager.PERMISSION_GRANTED
-                    ) {
-                        try {
-                            val device = bluetoothAdapter.getRemoteDevice(lastDeviceAddress)
-                            nameForInitialToast =
-                                device.name ?: lastDeviceAddress // Fallback a la MAC
-                        } catch (e: IllegalArgumentException) {
-                            nameForInitialToast = lastDeviceAddress // Fallback a la MAC
-                        }
-                    } else {
-                        nameForInitialToast =
-                            lastDeviceAddress // Fallback a la MAC si no hay permiso
-                    }
-                }
-
-                isAttemptingAutoReconnect = true
-                lastAttemptedDeviceAddressForAutoReconnect = lastDeviceAddress
-                sendReconnectAttemptingBroadcast(nameForInitialToast)
-                attemptAutoReconnectToDevice(lastDeviceAddress)
+        if (!bluetoothAdapter.isEnabled) {
+            Log.w("BluetoothService_CMD", "Bluetooth no está habilitado. Ignorando comando $action.")
+            // Podrías enviar un evento al StateManager indicando "Bluetooth_OFF"
+            // bluetoothStateManager.postBluetoothDisabled()
+            stopSelf() // Detener el servicio si BT está apagado y no puede hacer nada
+            return START_NOT_STICKY
+        }
+        // Re-obtener el scanner si no se inicializó en onCreate (BT estaba apagado)
+        if (bluetoothLeScanner == null) {
+            bluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner
+            if (bluetoothLeScanner == null) {
+                Log.e("BluetoothService_CMD", "Falló al obtener BluetoothLeScanner incluso después de que BT está ON.")
+                stopSelf()
+                return START_NOT_STICKY
             }
         }
 
-        when (intent?.action) {
 
-            ACTION_START_BLE_SCAN -> {
-                Log.d("BluetoothService", "Comando recibido: ACTION_START_BLE_SCAN")
-                startBleScan()
+        when (action) {
+            ACTION_START_SCAN -> {
+                // El permiso BLUETOOTH_SCAN es verificado por la Activity antes de enviar este intent
+                // La anotación está en la función startBleScan interna.
+                startBleScanWithPermissionCheck()
             }
-
-            ACTION_STOP_BLE_SCAN -> {
-                Log.d("BluetoothService", "Comando recibido: ACTION_STOP_SCAN")
-                stopBleScan()
+            ACTION_STOP_SCAN -> {
+                // El permiso BLUETOOTH_SCAN es verificado por la Activity antes de enviar este intent
+                // La anotación está en la función stopBleScan interna.
+                stopBleScanWithPermissionCheck()
             }
-
             ACTION_CONNECT_BLE -> {
+                // El permiso BLUETOOTH_CONNECT es verificado por la Activity antes de enviar este intent
                 val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
-                Log.d("BluetoothService", "Comando recibido: ACTION_CONNECT_BLE a $address")
-                isAttemptingAutoReconnect = false // Conexión manual
-                address?.let {
-                    val device = bluetoothAdapter.getRemoteDevice(it)
-                    connectToBleDevice(device.address) // Tu función para conectar (autoConnect=false para conexiones nuevas)
-                }
-            }
-
-            ACTION_DISCONNECT_BLE -> {
-                val address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS)
-                Log.d("BluetoothService", "Comando recibido: ACTION_DISCONNECT_BLE de $address")
-                address?.let {
-                    disconnectFromBleDevice(it)
-                }
-            }
-
-            ACTION_REQUEST_CURRENT_STATUS -> {
-                Log.d("BluetoothService_DEBUG", "Recibida ACTION_REQUEST_CURRENT_STATUS.")
-                if (bluetoothGatt != null && isServiceConnectedToDevice()) { // isServiceConnectedToDevice() es una función que debes tener para verificar el estado real
-                    val device = bluetoothGatt!!.device // ¡NO USAR '!!' EN PRODUCCIÓN, verificar nulidad!
-
-                    // ****** ESTA ES LA PARTE CRÍTICA ******
-                    // NO HAGAS ESTO DIRECTAMENTE:
-                    // val problematicDisplayName = if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
-                    // device.name ?: device.address
-                    // } else {
-                    // device.address
-                    // }
-                    // sendDeviceConnectedInfoBroadcast(device, problematicDisplayName)
-
-                    // EN SU LUGAR, USA LA LÓGICA CORRECTA:
-                    val savedName = getSavedDeviceName(device.address)
-                    val actualHardwareName = if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) device.name else null
-
-                    var displayNameForStatusUpdate: String
-                    if (savedName != null) {
-                        displayNameForStatusUpdate = savedName
-                        if (actualHardwareName != null && actualHardwareName != savedName) {
-                            displayNameForStatusUpdate = actualHardwareName // Prefiere el hardware si es diferente y no nulo
-                        }
-                    } else {
-                        displayNameForStatusUpdate = actualHardwareName ?: device.address
-                    }
-                    Log.d("BluetoothService_DEBUG", "ACTION_REQUEST_CURRENT_STATUS: Enviando info con displayName = '$displayNameForStatusUpdate'")
-                    sendDeviceConnectedInfoBroadcast(device, displayNameForStatusUpdate)
-
+                if (address != null) {
+                    val device = bluetoothAdapter.getRemoteDevice(address)
+                    // La anotación está en la función connectToDevice interna
+                    connectToDeviceWithPermissionCheck(device)
                 } else {
-                    sendDeviceDisconnectedBroadcast() // O un estado que indique "no conectado"
+                    Log.w("BluetoothService_CMD", "Dirección del dispositivo no proporcionada para conectar.")
                 }
-
+            }
+            ACTION_DISCONNECT_BLE -> {
+                // El permiso BLUETOOTH_CONNECT es verificado por la Activity
+                // La anotación está en la función disconnectDevice interna
+                disconnectDeviceWithPermissionCheck()
             }
         }
-        return START_STICKY
+        return START_REDELIVER_INTENT // O START_STICKY según tu necesidad
     }
 
     @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
@@ -471,11 +541,6 @@ class BluetoothService : Service() {
         Log.i("BluetoothService_NAME", "Nombre guardado para $deviceAddress: '$name'")
     }
 
-    private fun isServiceConnectedToDevice(): Boolean {
-        // Implementa una lógica para saber si ya hay una conexión GATT activa y válida
-        return bluetoothGatt != null && connectedBleDevices.isNotEmpty() // Simplificado
-    }
-
     private fun clearLastConnectedDeviceAddress() {
         val sharedPrefs = getSharedPreferences(AppPreferences.PREFS_NAME, MODE_PRIVATE)
         sharedPrefs.edit {
@@ -483,12 +548,6 @@ class BluetoothService : Service() {
             remove(AppPreferences.KEY_LAST_CONNECTED_BLE_DEVICE_NAME)
         }
         Log.i("BluetoothService_BLE", "Dirección del último dispositivo conectado eliminada.")
-    }
-
-    private fun sendReconnectAttemptingBroadcast(deviceNameForToast: String) {
-        // val intent = Intent(ACTION_RECONNECT_ATTEMPTING).putExtra(EXTRA_DEVICE_NAME, deviceNameForToast)
-        // LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
-        bluetoothStateManager.postReconnectAttempting(deviceNameForToast)
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -533,49 +592,14 @@ class BluetoothService : Service() {
         //     putExtra(EXTRA_DEVICE_NAME, displayName) // El nombre resuelto que la UI debe usar
         // }
         // LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
-        bluetoothStateManager.postDeviceConnectedInfo(device, displayName)
+        bluetoothStateManager.postConnectionSuccessful(displayName, device)
     }
 
-    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT]) // Ajusta según necesidad
-    private fun startBleScan() {
-        if (!bluetoothAdapter.isEnabled) {
-            Log.w("BluetoothService_SCAN", "Bluetooth no está habilitado. No se puede escanear.")
-            // Podrías enviar un evento de "Bluetooth no habilitado"
-            return
-        }
-
-        if (isScanning) {
-            Log.d("BluetoothService_SCAN", "El escaneo ya está en progreso.")
-            return
-        }
-
-        // Limpia la lista de dispositivos descubiertos antes de un nuevo escaneo
-        discoveredDevices.clear()
-        bluetoothStateManager.postScanResults(emptyList()) // Notifica que la lista está vacía al inicio
-
-        val scanFilters = listOf(ScanFilter.Builder().build()) // Ajusta tus filtros
-        val scanSettings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .build()
-
-        Log.i("BluetoothService_SCAN", "Iniciando escaneo BLE...")
-        bluetoothLeScanner?.startScan(scanFilters, scanSettings, scanCallback)
-        isScanning = true
-
-        // Programar la detención del escaneo después de un tiempo
-        scanHandler.postDelayed({
-            if (isScanning) {
-                stopBleScan()
-            }
-        }, SCAN_PERIOD)
-    }
-
-    // En tu función stopBleScan()
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     private fun stopBleScan() {
         if (isScanning) {
             Log.i("BluetoothService_SCAN", "Deteniendo escaneo BLE.")
-            bluetoothLeScanner?.stopScan(scanCallback)
+            bluetoothLeScanner?.stopScan(bleScanCallback)
             isScanning = false
             // Anteriormente: sendBroadcast(Intent(ACTION_SCAN_STOPPED))
             bluetoothStateManager.postScanStopped()
@@ -583,124 +607,151 @@ class BluetoothService : Service() {
         scanHandler.removeCallbacksAndMessages(null) // Limpia cualquier callback pendiente para detener el escaneo
     }
 
-    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
-    private fun connectToBleDevice(deviceAddress: String) {
-        val device = bluetoothAdapter.getRemoteDevice(deviceAddress)
-        if (device == null) {
-            Log.e(
-                "BluetoothService_BLE",
-                "Dispositivo BLE no encontrado con la dirección: $deviceAddress"
-            )
-            return
+    private fun connectToDeviceWithPermissionCheck(device: BluetoothDevice) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                Log.e("BluetoothService_CONN", "Permiso BLUETOOTH_CONNECT no concedido (API 31+). No se puede conectar.")
+                bluetoothStateManager.postConnectionFailed(currentDeviceName ?: device.address, "Permiso requerido")
+                return
+            }
+        } else { // Para API < 31, BLUETOOTH_ADMIN o BLUETOOTH es suficiente.
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED) { // BLUETOOTH_ADMIN para conectar
+                Log.e("BluetoothService_CONN", "Permiso BLUETOOTH_ADMIN no concedido (API < 31). No se puede conectar.")
+                bluetoothStateManager.postConnectionFailed(currentDeviceName ?: device.address, "Permiso requerido (admin)")
+                return
+            }
         }
-
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.BLUETOOTH_CONNECT
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            Log.d("BluetoothService_BLE", "Permiso BLUETOOTH_CONNECT denegado, no se puede conectar a GATT.")
-            return
-        }
-
-        // Detener escaneo BLE antes de conectar para ahorrar recursos
-        stopBleScan()
-
-        Log.d("BluetoothService_BLE", "Intentando conectar al dispositivo GATT: ${device.address}")
-
-        // Cierra conexiones previas a este mismo dispositivo si existen
-        connectedBleDevices[deviceAddress]?.close()
-
-        // El parámetro autoConnect a false significa que la conexión no persistirá si se pierde.
-        // Si lo pones a true, el sistema intentará reconectar automáticamente cuando el dispositivo esté disponible.
-        bluetoothGatt = device.connectGatt(this, true, gattCallback)
-        // También puedes usar:
-        // bluetoothGatt = device.connectGatt(this, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        actuallyConnectToDevice(device)
     }
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    private fun disconnectFromBleDevice(deviceAddress: String) {
-        val gatt = connectedBleDevices[deviceAddress]
-        if (gatt == null) {
-            Log.w("BluetoothService_BLE", "No hay conexión GATT para desconectar de $deviceAddress")
+    private fun actuallyConnectToDevice(device: BluetoothDevice) {
+        if (!bluetoothAdapter.isEnabled) {
+            Log.w("BluetoothService_CONN", "BT no habilitado, no se puede conectar a ${device.address}")
+            bluetoothStateManager.postConnectionFailed(currentDeviceName ?: device.address, "Bluetooth apagado")
             return
         }
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.BLUETOOTH_CONNECT
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            Log.w(
-                "BluetoothService_BLE",
-                "Permiso BLUETOOTH_CONNECT denegado, no se puede desconectar GATT."
-            )
-            return
+        Log.d("BluetoothService_CONN", "Intentando conectar a: ${device.address}")
+        stopBleScanWithPermissionCheck() // Detener escaneo antes de conectar
+
+        currentDeviceAddress = device.address
+        // Intentar obtener el nombre aquí también, si no lo tenemos del escaneo
+        if (currentDeviceName == null) {
+            currentDeviceName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                    try {
+                        device.name ?: device.address
+                    } catch (e: SecurityException){
+                        device.address
+                    }
+                } else {
+                    device.address
+                }
+            } else {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
+                    try {
+                        device.name ?: device.address
+                    } catch (e: SecurityException){
+                        device.address
+                    }
+                } else {
+                    device.address
+                }
+            }
         }
-        Log.d("BluetoothService_BLE", "Desconectando de GATT ${gatt.device.address}")
-        gatt.disconnect()
-        // La desconexión real se confirma en onConnectionStateChange, donde debes llamar a gatt.close()
+
+        bluetoothStateManager.postAttemptingConnection(currentDeviceName ?: device.address) // Nuevo evento
+
+        try {
+            // La llamada real que requiere BLUETOOTH_CONNECT en API 31+
+            connectedGatt = device.connectGatt(this, true, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        } catch (e: SecurityException) {
+            Log.e("BluetoothService_CONN", "SecurityException al conectar gatt: ${e.message}", e)
+            bluetoothStateManager.postConnectionFailed(currentDeviceName ?: device.address, e.message)
+        }
     }
 
-    // Callback para eventos GATT
+    private fun disconnectDeviceWithPermissionCheck() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                Log.e("BluetoothService_CONN", "Permiso BLUETOOTH_CONNECT no concedido (API 31+). No se puede desconectar explícitamente.")
+                // Si GATT existe, podría cerrarse sin la llamada explícita de disconnect si la app se cierra.
+                // Es mejor tener el permiso.
+                if (connectedGatt != null) {
+                    // No podemos llamar a disconnect, pero podemos cerrar y notificar.
+                    try { connectedGatt?.close() } catch (e: SecurityException) { /* log */ }
+                    connectedGatt = null
+                    bluetoothStateManager.postDeviceDisconnected(currentDeviceName ?: currentDeviceAddress)
+                    currentDeviceName = null
+                    currentDeviceAddress = null
+                }
+                return
+            }
+        }
+        // No hay permiso específico para disconnect en API < 31 que no sea BLUETOOTH_ADMIN que se usó para conectar.
+        actuallyDisconnectDevice()
+    }
+
+    private fun actuallyDisconnectDevice() {
+        if (connectedGatt != null) {
+            Log.d("BluetoothService_CONN", "Desconectando de ${currentDeviceAddress}")
+            try {
+                connectedGatt?.disconnect() // Esta llamada necesita BLUETOOTH_CONNECT en API 31+
+                // El cierre real y la notificación se harán en gattCallback.onConnectionStateChange
+            } catch (e: SecurityException) {
+                Log.e("BluetoothService_CONN", "SecurityException al desconectar gatt: ${e.message}", e)
+                // Si falla la desconexión por permisos, al menos cerrar y notificar.
+                try { connectedGatt?.close() } catch (se: SecurityException) { /* log */ }
+                bluetoothStateManager.postDeviceDisconnected(currentDeviceName ?: currentDeviceAddress)
+                connectedGatt = null
+                currentDeviceName = null
+                currentDeviceAddress = null
+            }
+        }
+    }
+
     private val gattCallback = object : BluetoothGattCallback() {
-        @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             val deviceAddress = gatt.device.address
+            val deviceNameForNotification = currentDeviceName ?: deviceAddress // Usar el nombre que intentamos resolver
 
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    Log.i("BluetoothService_BLE", "Conectado al GATT server de $deviceAddress.")
-                    // Aquí es donde MapsActivity ya no debería mostrar "Reconectando..."
-                    // El descubrimiento de servicios determinará el éxito final
-                    connectedBleDevices[deviceAddress] = gatt
-                    bluetoothGatt = gatt // Asignar el gatt globalmente
-                    // Iniciar descubrimiento de servicios
+                    Log.i("BluetoothService_GATT", "Conectado a GATT server $deviceNameForNotification ($deviceAddress).")
+                    connectedGatt = gatt // Asegurar que tenemos la instancia correcta
+                    currentDeviceAddress = deviceAddress // Confirmar
+                    // Guardar el nombre resuelto si BLUETOOTH_CONNECT está disponible
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        if (ActivityCompat.checkSelfPermission(this@BluetoothService, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                            try { currentDeviceName = gatt.device.name ?: deviceNameForNotification } catch (e: SecurityException) {/*log*/}
+                        }
+                    } else {
+                        if (ActivityCompat.checkSelfPermission(this@BluetoothService, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
+                            try { currentDeviceName = gatt.device.name ?: deviceNameForNotification } catch (e: SecurityException) {/*log*/}
+                        }
+                    }
+                    bluetoothStateManager.postConnectionSuccessful(currentDeviceName ?: deviceAddress, gatt.device)
+                    // Iniciar descubrimiento de servicios si es necesario
                     gatt.discoverServices()
-
+                    startForegroundWithNotification("Conectado a ${currentDeviceName ?: deviceAddress}")
+                    handleDeviceNameLogicAndBroadcasts(gatt, "onConnectionStateChange")
 
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                    val disconnectedDeviceName =
-                        gatt.device.name ?: deviceAddress // Mejor obtenerlo aquí si está disponible
-                    Log.i(
-                        "BluetoothService_BLE",
-                        "Desconectado del GATT server de $disconnectedDeviceName."
-                    )
-                    closeGattConnection(deviceAddress)
-                    if (isAttemptingAutoReconnect && deviceAddress == lastAttemptedDeviceAddressForAutoReconnect) {
-                        // Si la reconexión activa falló, notifica con el nombre que estabas intentando reconectar (de SharedPreferences)
-                        val prefsName =
-                            getSharedPreferences(AppPreferences.PREFS_NAME, MODE_PRIVATE)
-                                .getString(
-                                    AppPreferences.KEY_LAST_CONNECTED_BLE_DEVICE_NAME,
-                                    deviceAddress
-                                )
-                        sendConnectionFailedBroadcast(prefsName, "Fallo en la reconexión.")
-                    } else {
-                        sendDeviceDisconnectedBroadcast(disconnectedDeviceName)
-                    }
-                    isAttemptingAutoReconnect = false
-                    lastAttemptedDeviceAddressForAutoReconnect = null
+                    Log.i("BluetoothService_GATT", "Desconectado de GATT server $deviceNameForNotification ($deviceAddress).")
+                    try { gatt.close() } catch (e: SecurityException) { Log.e("BluetoothService_GATT", "SecEx al cerrar GATT en desconexión", e) }
+                    connectedGatt = null
+                    bluetoothStateManager.postDeviceDisconnected(deviceNameForNotification)
+                    currentDeviceName = null
+                    currentDeviceAddress = null
+                    stopForeground(STOP_FOREGROUND_REMOVE) // Detener el primer plano
                 }
             } else { // Error en la conexión
-                Log.w("BluetoothService_BLE", "Error GATT en conexión con $deviceAddress: $status")
-                val errorDeviceName = gatt.device.name ?: deviceAddress
-                closeGattConnection(deviceAddress)
-                if (isAttemptingAutoReconnect && deviceAddress == lastAttemptedDeviceAddressForAutoReconnect) {
-                    val prefsName =
-                        getSharedPreferences(AppPreferences.PREFS_NAME, MODE_PRIVATE)
-                            .getString(
-                                AppPreferences.KEY_LAST_CONNECTED_BLE_DEVICE_NAME,
-                                deviceAddress
-                            )
-                    sendConnectionFailedBroadcast(prefsName, "Fallo en conexión GATT ($status).")
-                } else {
-                    sendConnectionFailedBroadcast(
-                        errorDeviceName,
-                        "Fallo en conexión GATT ($status)."
-                    )
-                }
-                isAttemptingAutoReconnect = false
-                lastAttemptedDeviceAddressForAutoReconnect = null
+                Log.w("BluetoothService_GATT", "Error GATT: $status al cambiar estado para $deviceNameForNotification ($deviceAddress)")
+                try { gatt.close() } catch (e: SecurityException) { Log.e("BluetoothService_GATT", "SecEx al cerrar GATT en error", e) }
+                connectedGatt = null
+                bluetoothStateManager.postConnectionFailed(deviceNameForNotification, "Error GATT: $status")
+                currentDeviceName = null
+                currentDeviceAddress = null
+                stopForeground(STOP_FOREGROUND_REMOVE)
             }
         }
 
@@ -738,10 +789,7 @@ class BluetoothService : Service() {
                 // Ejemplo: readCharacteristic(gatt, YOUR_SERVICE_UUID, YOUR_CHARACTERISTIC_UUID)
                 // Ejemplo: enableNotifications(gatt, YOUR_SERVICE_UUID, YOUR_NOTIFY_CHARACTERISTIC_UUID)
 
-                val serviceUuid = UUID.fromString(SERVICE_UUID_STRING)
-                val characteristicUuid = UUID.fromString(CHARACTERISTIC_UUID_STRING)
-
-                val service = gatt.getService(serviceUuid)
+                val service = gatt.getService(SERVICE_UUID_STRING)
                 if (service == null) {
                     Log.e(
                         "BluetoothService_BLE",
@@ -751,7 +799,7 @@ class BluetoothService : Service() {
                     return
                 }
 
-                val characteristic = service.getCharacteristic(characteristicUuid)
+                val characteristic = service.getCharacteristic(CHARACTERISTIC_UUID_STRING)
                 if (characteristic == null) {
                     Log.e(
                         "BluetoothService_BLE",
@@ -911,6 +959,7 @@ class BluetoothService : Service() {
             value: ByteArray // El nuevo formato para Android 13+
         ) {
             super.onCharacteristicChanged(gatt, characteristic, value)
+            Log.d("BluetoothService_DATA", "Datos recibidos de ${gatt.device.address} en ${characteristic.uuid}: ${value.toHexString()}")
             //Log.d("BluetoothService_BLE", "onCharacteristicChanged (API 33+) from ${characteristic.uuid}")
             handleCharacteristicChanged(gatt.device.address, characteristic.uuid.toString(), value)
         }
@@ -981,14 +1030,14 @@ class BluetoothService : Service() {
                         // que envías es un campo separado, la lógica de guardado cambiaría.
                         // ASUMIREMOS que el 'id' que viene del ESP32 ES la PrimaryKey en tu tabla Dispositivo.
 
-                        var dispositivo =
-                            dispositivoRepository.getDispositivoByIdOnce(idDispositivo)
+                        var rastreador =
+                            rastreadorRepository.getDispositivoByIdOnce(idDispositivo)
 
-                        if (dispositivo == null) {
+                        if (rastreador == null) {
                             // Si no existe un dispositivo con ese ID y MAC, lo creamos.
                             // Esto asume que el ID que manda el ESP32 es único para ese tipo de sensor
                             // y la MAC identifica al ESP32 que lo tiene.
-                            dispositivo = Dispositivo(
+                            rastreador = Rastreador(
                                 id = idDispositivo,
                                 nombre = "Dispositivo $idDispositivo",
                                 descripcion = "Sin descripción",
@@ -998,27 +1047,27 @@ class BluetoothService : Service() {
                                 tipoAnimal = 0,
                                 activo = true
                             )
-                            dispositivoRepository.insertDispositivo(dispositivo)
+                            rastreadorRepository.insertDispositivo(rastreador)
                             Log.i(
                                 "BluetoothService_BLE",
-                                "Nuevo Dispositivo creado y guardado: $dispositivo"
+                                "Nuevo Dispositivo creado y guardado: $rastreador"
                             )
                             // Notificar a la UI sobre nuevo dispositivo
                             sendNewDeviceDataNotification(
-                                dispositivo,
+                                rastreador,
                                 "Nuevo dispositivo detectado"
                             )
 
                         } else {
                             // Actualizar el dispositivo existente con la nueva ubicación
-                            dispositivo = dispositivo.copy(
+                            rastreador = rastreador.copy(
                                 latitud = latitud,
                                 longitud = longitud,
                                 ultimaConexion = System.currentTimeMillis(),
                                 activo = true
                             )
 
-                            dispositivoRepository.updateDispositivo(dispositivo)
+                            rastreadorRepository.updateDispositivo(rastreador)
                             //Log.i("BluetoothService_BLE", "Dispositivo actualizado: $dispositivo")
                             // Notificar a la UI sobre actualización
                             // sendNewDeviceDataNotification(dispositivo, "Ubicación actualizada")
@@ -1042,20 +1091,20 @@ class BluetoothService : Service() {
 
         // Necesitarás añadir esto al servicio para enviar notificaciones al usuario
         // (notificaciones del sistema Android, no notificaciones BLE)
-        private fun sendNewDeviceDataNotification(dispositivo: Dispositivo, message: String) {
+        private fun sendNewDeviceDataNotification(rastreador: Rastreador, message: String) {
             val notificationTitle =
-                "PecusTrack: ${dispositivo.nombre ?: "Dispositivo ${dispositivo.id}"}"
-            val notificationText = "$message (${dispositivo.latitud}, ${dispositivo.longitud})"
+                "PecusTrack: ${rastreador.nombre ?: "Dispositivo ${rastreador.id}"}"
+            val notificationText = "$message (${rastreador.latitud}, ${rastreador.longitud})"
+            val notificationID = System.currentTimeMillis().toInt()
             val notification = NotificationHelper.createBasicNotification(
                 this@BluetoothService,
+                DATA_UPDATE_CHANNEL_ID,
                 notificationTitle,
-                notificationText,
-                NOTIFICATION_CHANNEL_ID,
-                NOTIFICATION_ID
+                notificationText
             )
             notificationHelper.showNotification(
                 this@BluetoothService,
-                NOTIFICATION_ID,
+                notificationID,
                 notification
             )
         }
@@ -1237,7 +1286,7 @@ class BluetoothService : Service() {
         timestamp: Long
     ) {
         try {
-            val existingDevice = dispositivoRepository.getDispositivoByIdOnce(deviceId)
+            val existingDevice = rastreadorRepository.getDispositivoByIdOnce(deviceId)
             if (existingDevice != null) {
                 val updatedDevice = existingDevice.copy(
                     latitud = lat,
@@ -1245,10 +1294,10 @@ class BluetoothService : Service() {
                     ultimaConexion = timestamp,
                     activo = true
                 )
-                dispositivoRepository.updateDispositivo(updatedDevice)
+                rastreadorRepository.updateDispositivo(updatedDevice)
                 Log.i("BluetoothService", "Dispositivo $deviceId actualizado en repositorio.")
             } else {
-                val newDevice = Dispositivo(
+                val newDevice = Rastreador(
                     id = deviceId,
                     nombre = "Dispositivo: $deviceId",
                     latitud = lat,
@@ -1258,7 +1307,7 @@ class BluetoothService : Service() {
                     activo = true,
                     descripcion = "Sin descripción",
                 )
-                dispositivoRepository.insertDispositivo(newDevice)
+                rastreadorRepository.insertDispositivo(newDevice)
                 Log.i("BluetoothService", "Nuevo dispositivo $deviceId insertado en repositorio.")
             }
         } catch (e: Exception) {
@@ -1280,44 +1329,37 @@ class BluetoothService : Service() {
         )
     }
 
-
-    override fun onBind(intent: Intent?): IBinder? {
-        return null // No estamos usando vinculación directa en este ejemplo, sino broadcasts
+    private fun startForegroundWithNotification(contentText: String) {
+        val notification = NotificationHelper.createBluetoothServiceNotification(
+            this,
+            contentText
+        )
+        startForeground(NotificationHelper.BLUETOOTH_SERVICE_NOTIFICATION_ID, notification)
     }
 
-    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
     override fun onDestroy() {
+        Log.d("BluetoothService_LIFECYCLE", "Servicio Destruido")
+        stopBleScanWithPermissionCheck()
+        if (connectedGatt != null) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    // No podemos llamar a disconnect, solo close
+                } else {
+                    connectedGatt?.disconnect() // Intenta desconectar si es posible
+                }
+                connectedGatt?.close()
+            } catch (e: SecurityException) {
+                Log.e("BluetoothService_LIFECYCLE", "SecurityException al limpiar GATT en onDestroy", e)
+            }
+            connectedGatt = null
+        }
+        stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
-        Log.d("BluetoothService", "Servicio destruido. Iniciando limpieza de recursos...")
+    }
 
-        // 1. Detener Escaneos
-        // Detener escaneo clásico
-        if (bluetoothAdapter.isDiscovering) {
-            if (ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.BLUETOOTH_SCAN
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                bluetoothAdapter.cancelDiscovery()
-                Log.d("BluetoothService", "Descubrimiento clásico detenido.")
-            }
-        }
-        stopBleScan()
-
-        Log.d("BluetoothService", "Limpiando conexiones GATT (BLE)...")
-        connectedBleDevices.values.forEach { gatt ->
-            if (ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.BLUETOOTH_CONNECT
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                Log.d("BluetoothService", "Desconectando GATT de ${gatt.device.address}")
-                gatt.disconnect()
-            }
-        }
-        connectedBleDevices.clear()
-
-        serviceJob.cancel()
-        Log.d("BluetoothService", "ServiceJob cancelado. Limpieza de onDestroy completada.")
+    override fun onBind(intent: Intent?): IBinder = binder
+    inner class LocalBinder : Binder() {
+        fun getService(): BluetoothService = this@BluetoothService
     }
 }

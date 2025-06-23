@@ -1,14 +1,9 @@
 package com.dasc.pecustrack.ui.viewmodel
 
-import android.Manifest
 import android.app.Application
 import android.bluetooth.BluetoothDevice
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresPermission
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -16,8 +11,8 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
 import com.dasc.pecustrack.bluetooth.BluetoothService
 import com.dasc.pecustrack.bluetooth.BluetoothStateManager
-import com.dasc.pecustrack.bluetooth.ConnectionEventInfo
-import com.dasc.pecustrack.ui.adapter.DiscoveredDeviceInfo
+import com.dasc.pecustrack.bluetooth.ConnectionStatusInfo
+import com.dasc.pecustrack.ui.adapter.BleDevice
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
@@ -27,128 +22,113 @@ class BluetoothViewModel @Inject constructor(
     private val bluetoothStateManager: BluetoothStateManager
 ) : AndroidViewModel(application) {
 
-    private val _scannedDevices = MutableLiveData<List<BluetoothDevice>>(emptyList())
-    val scannedDevices: LiveData<List<BluetoothDevice>> = _scannedDevices
+    // --- Para Escaneo ---
+    private val _scannedBleDeviceItems = MutableLiveData<List<BleDevice>>(emptyList())
+    val scannedBleDeviceItems: LiveData<List<BleDevice>> = _scannedBleDeviceItems
 
-    private val _scannedDiscoveredDeviceItems = MutableLiveData<List<DiscoveredDeviceInfo>>(emptyList())
-    val scannedDiscoveredDeviceItems: LiveData<List<DiscoveredDeviceInfo>> = _scannedDiscoveredDeviceItems
-
-    private val _isScanning = MutableLiveData<Boolean>(false) // Para indicar el estado del escaneo
+    private val _isScanning = MutableLiveData<Boolean>(false)
     val isScanning: LiveData<Boolean> = _isScanning
 
-    private val _scanError = MutableLiveData<String?>() // Para mensajes de error de escaneo
+    private val _scanError = MutableLiveData<String?>() // Mensaje de error de escaneo
     val scanError: LiveData<String?> = _scanError
 
-    private val _connectedDevice = MutableLiveData<BluetoothDevice?>()
-    val connectedDevice: LiveData<BluetoothDevice?> = _connectedDevice
+    // --- Para Conexión ---
+    private val _connectionStatusText = MutableLiveData<String>("Desconectado")
+    val connectionStatusText: LiveData<String> = _connectionStatusText
 
-    private val _connectionStatus = MutableLiveData<String>() // ej. "Conectando...", "Conectado"
-    val connectionStatus: LiveData<String> = _connectionStatus
+    private val _connectedDeviceName = MutableLiveData<String?>()
+    val connectedDeviceName: LiveData<String?> = _connectedDeviceName
 
-    private val _currentDeviceName = MutableLiveData<String?>()
-    val currentDeviceName: LiveData<String?> = _currentDeviceName
+    private val _isConnected = MutableLiveData<Boolean>(false)
+    val isConnected: LiveData<Boolean> = _isConnected
 
-    private val _isConnecting = MutableLiveData<Boolean>()
-    val isConnecting: LiveData<Boolean> = _isConnecting
+    // --- Observadores para BluetoothStateManager ---
+    private val scanStartedObserver = Observer<Unit> {
+        Log.d("BluetoothViewModel_OBS", "StateManager - Scan Started")
+        _isScanning.value = true
+        _scanError.value = null // Limpiar errores previos
+        _scannedBleDeviceItems.value = emptyList() // Limpiar resultados anteriores al iniciar nuevo escaneo
+    }
 
-    private val scanResultsObserver = Observer<List<BluetoothDevice>> { devices ->
-        Log.d("BluetoothViewModel_SCAN", "StateManager - ScanResults: ${devices.size} dispositivos recibidos para transformar a BleDeviceItem")
-
-        val deviceItems = devices.map { device ->
-            var deviceName: String? = null // Inicializar como null
-
-            // Lógica para obtener el nombre del dispositivo según la versión del SDK y los permisos
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { // Android 12 (API 31) o superior
-                if (ActivityCompat.checkSelfPermission(
-                        getApplication(),
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) == PackageManager.PERMISSION_GRANTED
-                ) {
-                    try {
-                        deviceName = device.name
-                    } catch (e: SecurityException) {
-                        Log.e("BluetoothViewModel_SCAN", "SecurityException al obtener device.name en API 31+. Permiso BLUETOOTH_CONNECT podría faltar en el manifest o no estar concedido en tiempo de ejecución.", e)
-                        // deviceName permanece null
-                    }
-                } else {
-                    Log.w("BluetoothViewModel_SCAN", "Permiso BLUETOOTH_CONNECT no concedido en API 31+ para device.name.")
-                    // deviceName permanece null
-                }
-            } else { // Versiones anteriores a Android 12 (API < 31), donde BLUETOOTH_CONNECT no existe.
-                // Aquí, el acceso a device.name está generalmente permitido si tienes BLUETOOTH.
-                // Sin embargo, todavía puede lanzar SecurityException si BLUETOOTH no está en el manifest,
-                // o devolver null si el dispositivo no tiene nombre o no es visible.
-                if (ActivityCompat.checkSelfPermission(
-                        getApplication(),
-                        Manifest.permission.BLUETOOTH // Para API < 31, este es el permiso relevante para obtener el nombre.
-                    ) == PackageManager.PERMISSION_GRANTED
-                ) {
-                    try {
-                        deviceName = device.name
-                    } catch (e: SecurityException) {
-                        // Esto sería muy inusual si el permiso BLUETOOTH está concedido y en el manifest
-                        Log.e("BluetoothViewModel_SCAN", "SecurityException al obtener device.name en API < 31, incluso con permiso BLUETOOTH.", e)
-                        // deviceName permanece null
-                    }
-                } else {
-                    Log.w("BluetoothViewModel_SCAN", "Permiso BLUETOOTH no concedido en API < 31 para device.name (o no está en el Manifest).")
-                    // deviceName permanece null
-                }
-            }
-
-            DiscoveredDeviceInfo(
-                id = device.address,
-                displayName = deviceName ?: "Desconocido (${device.address.takeLast(5)})", // Nombre o fallback
-                address = device.address,
-                bluetoothDevice = device
+    private val scanResultsObserver = Observer<List<BleDevice>> { devicesInfoList ->
+        Log.d("BluetoothViewModel_OBS", "StateManager - ScanResults: ${devicesInfoList.size} DiscoveredDeviceInfo recibidos")
+        // NO HAY LÓGICA DE PERMISOS AQUÍ PARA OBTENER EL NOMBRE
+        val deviceItems = devicesInfoList.map { deviceInfo ->
+            BleDevice(
+                device = deviceInfo.device,
+                address = deviceInfo.address,
+                resolvedName = deviceInfo.resolvedName ?: "Desconocido (${deviceInfo.address.takeLast(5)})",
+                // rssi = deviceInfo.rssi // Si lo añades a DiscoveredDeviceInfo
             )
         }
-        _scannedDiscoveredDeviceItems.value = deviceItems
+        _scannedBleDeviceItems.value = deviceItems
     }
 
     private val scanFailedObserver = Observer<Int> { errorCode ->
-        Log.e("BluetoothViewModel_SCAN", "StateManager - ScanFailed: $errorCode")
+        Log.e("BluetoothViewModel_OBS", "StateManager - ScanFailed: $errorCode")
         _scanError.value = "Error de escaneo: $errorCode" // O un mensaje más amigable
         _isScanning.value = false
     }
 
     private val scanStoppedObserver = Observer<Unit> {
-        Log.d("BluetoothViewModel_SCAN", "StateManager - ScanStopped")
+        Log.d("BluetoothViewModel_OBS", "StateManager - Scan Stopped")
         _isScanning.value = false
         // No necesariamente limpiar _scannedDevices aquí, podrían quererse ver los últimos resultados
     }
 
-    private val deviceConnectedInfoObserver = Observer<ConnectionEventInfo> { eventInfo ->
-        Log.d("BluetoothViewModel_DEBUG", "StateManager - DeviceConnectedInfo: deviceName='${eventInfo.deviceName}', device='${eventInfo.device?.address}'")
-        _connectedDevice.value = eventInfo.device
-        _currentDeviceName.value = eventInfo.deviceName
-
-        if (eventInfo.device != null) {
-            _connectionStatus.value = "Conectado a ${eventInfo.deviceName ?: eventInfo.device.address}"
-        } else {
-            _connectionStatus.value = "Desconectado" // O un estado más apropiado
-            _currentDeviceName.value = null // Limpiar si el dispositivo es null
-        }
+    private val attemptingConnectionObserver = Observer<String> { deviceName ->
+        Log.d("BluetoothViewModel_OBS", "StateManager - Attempting Connection to: $deviceName")
+        _connectionStatusText.value = "Conectando a $deviceName..."
+        _isConnected.value = false
     }
 
-    private val connectionFailedObserver = Observer<ConnectionEventInfo> { eventInfo ->
-        Log.d("BluetoothViewModel_DEBUG", "StateManager - ConnectionFailed: deviceName='${eventInfo.deviceName}'")
-        _connectionStatus.value = "Conexión fallida a ${eventInfo.deviceName ?: "dispositivo"}"
-        // _connectedDevice.value = null // Podrías limpiar el dispositivo aquí si la conexión falla
-        // _currentDeviceName.value = null
+    private val connectionSuccessfulObserver = Observer<ConnectionStatusInfo> { statusInfo ->
+        Log.i("BluetoothViewModel_OBS", "StateManager - Connection Successful to: ${statusInfo.deviceDisplayName}")
+        _connectionStatusText.value = "Conectado a ${statusInfo.deviceDisplayName}"
+        _connectedDeviceName.value = statusInfo.deviceDisplayName
+        _isConnected.value = true
     }
 
-    private val deviceDisconnectedObserver = Observer<ConnectionEventInfo> { eventInfo ->
-        Log.d("BluetoothViewModel_DEBUG", "StateManager - DeviceDisconnected: deviceName='${eventInfo.deviceName}'")
-        _connectionStatus.value = "${eventInfo.deviceName ?: "Dispositivo"} desconectado"
-        _connectedDevice.value = null
-        _currentDeviceName.value = null
+    private val connectionFailedObserver = Observer<ConnectionStatusInfo> { statusInfo ->
+        Log.e("BluetoothViewModel_OBS", "StateManager - Connection Failed to: ${statusInfo.deviceDisplayName}, Error: ${statusInfo.errorMessage}")
+        _connectionStatusText.value = "Falló conexión con ${statusInfo.deviceDisplayName ?: "dispositivo"}: ${statusInfo.errorMessage}"
+        _connectedDeviceName.value = null
+        _isConnected.value = false
+    }
+
+    private val deviceDisconnectedObserver = Observer<ConnectionStatusInfo> { statusInfo ->
+        Log.i("BluetoothViewModel_OBS", "StateManager - Device Disconnected: ${statusInfo.deviceDisplayName}")
+        _connectionStatusText.value = "Desconectado de ${statusInfo.deviceDisplayName ?: "dispositivo"}"
+        _connectedDeviceName.value = null
+        _isConnected.value = false
     }
 
 
     init {
-        requestCurrentConnectionStatus()
-        startObservingBluetoothState()
+        // Registrar observadores
+        bluetoothStateManager.scanStarted.observeForever(scanStartedObserver)
+        bluetoothStateManager.scanResults.observeForever(scanResultsObserver)
+        bluetoothStateManager.scanFailed.observeForever(scanFailedObserver)
+        bluetoothStateManager.scanStopped.observeForever(scanStoppedObserver)
+        bluetoothStateManager.attemptingConnection.observeForever(attemptingConnectionObserver)
+        bluetoothStateManager.connectionSuccessful.observeForever(connectionSuccessfulObserver)
+        bluetoothStateManager.connectionFailed.observeForever(connectionFailedObserver)
+        bluetoothStateManager.deviceDisconnected.observeForever(deviceDisconnectedObserver)
+        Log.d("BluetoothViewModel_LIFECYCLE", "ViewModel Creado y Observadores Registrados")
+    }
+
+    override fun onCleared() {
+        // Eliminar observadores para evitar memory leaks
+        bluetoothStateManager.scanStarted.removeObserver(scanStartedObserver)
+        bluetoothStateManager.scanResults.removeObserver(scanResultsObserver)
+        bluetoothStateManager.scanFailed.removeObserver(scanFailedObserver)
+        bluetoothStateManager.scanStopped.removeObserver(scanStoppedObserver)
+        bluetoothStateManager.attemptingConnection.removeObserver(attemptingConnectionObserver)
+        bluetoothStateManager.connectionSuccessful.removeObserver(connectionSuccessfulObserver)
+        bluetoothStateManager.connectionFailed.removeObserver(connectionFailedObserver)
+        bluetoothStateManager.deviceDisconnected.removeObserver(deviceDisconnectedObserver)
+        Log.d("BluetoothViewModel_LIFECYCLE", "ViewModel Limpiado y Observadores Eliminados")
+        super.onCleared()
     }
 
     fun requestCurrentConnectionStatus() {
@@ -162,84 +142,50 @@ class BluetoothViewModel @Inject constructor(
         )
     }
 
+    // --- ACCIONES INICIADAS DESDE LA UI (NO REQUIEREN ANOTACIÓN DE PERMISO AQUÍ) ---
+    // La UI (Activity/Fragment) es responsable de verificar los permisos ANTES de llamar a estas funciones.
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     fun startScan() {
-        // Podrías actualizar _isScanning aquí inmediatamente para una respuesta UI más rápida,
-        // pero el estado real lo determinará el servicio
-        _isScanning.value = true
-        _scanError.value = null // Limpiar errores anteriores
-        _scannedDevices.value = emptyList() // Opcional: limpiar la lista al iniciar nuevo escaneo
-        Log.d("BluetoothViewModel_SCAN", "Solicitando inicio de escaneo al servicio.")
-        sendCommandToService(Intent(getApplication(), BluetoothService::class.java).setAction(BluetoothService.ACTION_START_SCAN))
+        // El ViewModel no necesita @RequiresPermission.
+        // La Activity ya debe haber verificado los permisos de escaneo.
+        Log.d("BluetoothViewModel_ACTION", "Solicitando inicio de escaneo al servicio.")
+        val intent = Intent(getApplication(), BluetoothService::class.java).apply {
+            action = BluetoothService.ACTION_START_SCAN
+        }
+        getApplication<Application>().startService(intent)
+        // El estado de _isScanning se actualizará a través del observer scanStartedObserver
     }
 
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     fun stopScan() {
-        Log.d("BluetoothViewModel_SCAN", "Solicitando detención de escaneo al servicio.")
-        sendCommandToService(Intent(getApplication(), BluetoothService::class.java).setAction(BluetoothService.ACTION_STOP_SCAN))
-        _isScanning.value = false // Actualizar el estado de escaneo
+        Log.d("BluetoothViewModel_ACTION", "Solicitando detención de escaneo al servicio.")
+        val intent = Intent(getApplication(), BluetoothService::class.java).apply {
+            action = BluetoothService.ACTION_STOP_SCAN
+        }
+        getApplication<Application>().startService(intent)
+        // El estado de _isScanning se actualizará a través del observer scanStoppedObserver
     }
 
     fun connectToDevice(device: BluetoothDevice) {
+        // La Activity ya debe haber verificado el permiso BLUETOOTH_CONNECT (o BLUETOOTH_ADMIN en API<31).
+        Log.d("BluetoothViewModel_ACTION", "Solicitando conexión a ${device.address} al servicio.")
         val intent = Intent(getApplication(), BluetoothService::class.java).apply {
             action = BluetoothService.ACTION_CONNECT_BLE
             putExtra(BluetoothService.EXTRA_DEVICE_ADDRESS, device.address)
         }
-
-        ContextCompat.startForegroundService(getApplication(), intent)
-        _isConnecting.value = true
+        // Usar startForegroundService si el servicio podría no estar ya en primer plano
+        // ContextCompat.startForegroundService(getApplication(), intent) // o solo startService si sabes que ya corre
+        getApplication<Application>().startService(intent)
     }
 
-    fun disconnect() {
+    fun disconnectDevice() {
+        Log.d("BluetoothViewModel_ACTION", "Solicitando desconexión al servicio.")
         val intent = Intent(getApplication(), BluetoothService::class.java).apply {
             action = BluetoothService.ACTION_DISCONNECT_BLE
-            connectedDevice.value?.address?.let {
-                putExtra(BluetoothService.EXTRA_DEVICE_ADDRESS, it)
-            }
         }
-        ContextCompat.startForegroundService(getApplication(), intent)
+        getApplication<Application>().startService(intent)
     }
 
-
-    private fun startObservingBluetoothState() {
-        // Observa los eventos relevantes del BluetoothStateManager
-        // Estos observadores se activarán cuando el LiveData en StateManager cambie
-        bluetoothStateManager.deviceConnectedInfo.observeForever(deviceConnectedInfoObserver)
-        bluetoothStateManager.connectionFailed.observeForever(connectionFailedObserver)
-        bluetoothStateManager.deviceDisconnected.observeForever(deviceDisconnectedObserver)
-        bluetoothStateManager.scanResults.observeForever(scanResultsObserver)
-        bluetoothStateManager.scanFailed.observeForever(scanFailedObserver)
-        bluetoothStateManager.scanStopped.observeForever(scanStoppedObserver)
-        // Observa otros eventos si DeviceActivity necesita reaccionar a ellos (ej. reconnectAttempting, connectionSuccessful)
-        // bluetoothStateManager.connectionSuccessful.observeForever { eventInfo -> ... }
-
-        // Solicitar estado actual al servicio (si es necesario al iniciar el ViewModel)
-        // Esto es si quieres que el ViewModel sepa el estado tan pronto como se crea,
-        // incluso si el servicio ya estaba conectado.
-        // sendCommandToService(Intent(application, BluetoothService::class.java).setAction(BluetoothService.ACTION_REQUEST_CURRENT_STATUS))
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        // Limpia los observadores para evitar memory leaks
-        bluetoothStateManager.deviceConnectedInfo.removeObserver(deviceConnectedInfoObserver)
-        bluetoothStateManager.connectionFailed.removeObserver(connectionFailedObserver)
-        bluetoothStateManager.deviceDisconnected.removeObserver(deviceDisconnectedObserver)
-        bluetoothStateManager.scanResults.removeObserver(scanResultsObserver)
-        bluetoothStateManager.scanFailed.removeObserver(scanFailedObserver)
-        bluetoothStateManager.scanStopped.removeObserver(scanStoppedObserver)
-        // Quita otros observadores si los añadiste
-    }
-
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    private fun sendCommandToService(intent: Intent) {
-        if (ContextCompat.checkSelfPermission(getApplication(), Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
-            Log.d("BluetoothViewModel", "Enviando comando al servicio Bluetooth.")
-            getApplication<Application>().startService(intent)
-        } else {
-            Log.e("BluetoothViewModel", "Permiso BLUETOOTH_CONNECT no concedido.")
-            _scanError.value = "Permiso de Bluetooth no concedido"
-        }
+    fun clearScanError() {
+        _scanError.value = null
     }
 }

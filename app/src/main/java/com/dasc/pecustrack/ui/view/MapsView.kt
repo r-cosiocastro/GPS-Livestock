@@ -2,10 +2,7 @@ package com.dasc.pecustrack.ui.view
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
@@ -19,12 +16,10 @@ import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.dasc.pecustrack.R
-import com.dasc.pecustrack.data.model.Dispositivo
+import com.dasc.pecustrack.data.model.Rastreador
 import com.dasc.pecustrack.data.model.Poligono
 import com.dasc.pecustrack.databinding.ActivityMapsBinding
 import com.dasc.pecustrack.bluetooth.BluetoothService
@@ -50,7 +45,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedCallback {
+class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedCallback {
 
     @Inject
     lateinit var bluetoothStateManager: BluetoothStateManager
@@ -94,7 +89,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         binding = ActivityMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        loadingDialog = LoadingDialog(this@MapsActivity)
+        loadingDialog = LoadingDialog(this@MapsView)
         loadingDialog.showLoadingDialog("Cargando mapa", R.raw.cow)
 
         Intent(this, BluetoothService::class.java).also { serviceIntent ->
@@ -102,7 +97,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         }
 
         binding.fabBluetooth.setOnClickListener {
-            startActivity(Intent(this, DeviceActivity::class.java))
+            startActivity(Intent(this, BluetoothDevicesView::class.java))
         }
 
         val bottomSheet = binding.bottomCardDeviceDetails
@@ -205,7 +200,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
 
         lifecycleScope.launch { // Necesitas un scope de corrutina
             repeatOnLifecycle(Lifecycle.State.STARTED) { // Y repetir en el ciclo de vida apropiado
-                viewModel.dispositivoSeleccionado.collect { dispositivo ->
+                viewModel.rastreadorSeleccionado.collect { dispositivo ->
                     if (dispositivo != null) { // Si hay un dispositivo seleccionado
                         centrarMapa = false
                         Log.d("MapsActivity", "Dispositivo seleccionado: ${dispositivo.id}. Centrar mapa desactivado.")
@@ -355,54 +350,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         }
     }
 
-    private fun setupBluetoothObservers() {
-        bluetoothStateManager.reconnectAttempting.observe(this, Observer { eventInfo ->
-            currentToast?.cancel()
-            val deviceName = eventInfo.deviceName ?: "dispositivo guardado"
-            currentToast = Toast.makeText(applicationContext, "Reconectando a $deviceName...", Toast.LENGTH_SHORT)
-            currentToast?.show()
-            binding.textEstadoBluetooth.text = "Reconectando a $deviceName..."
-        })
-
-        bluetoothStateManager.connectionSuccessful.observe(this, Observer { eventInfo ->
-            currentToast?.cancel()
-            val deviceName = eventInfo.deviceName ?: "Dispositivo"
-            Log.d("MapsActivity", "Conexión exitosa a Bluetooth a $deviceName")
-            currentToast = Toast.makeText(applicationContext, "Conectado a $deviceName", Toast.LENGTH_SHORT)
-            currentToast?.show()
-            binding.textEstadoBluetooth.text = "Conectado por bluetooth a $deviceName"
-        })
-
-        bluetoothStateManager.connectionFailed.observe(this, Observer { eventInfo ->
-            currentToast?.cancel()
-            val deviceName = eventInfo.deviceName
-            val errorMsg = eventInfo.errorMessage
-            val message = if (deviceName != null) {
-                "Conexión a $deviceName fallida." + (if (errorMsg != null) " ($errorMsg)" else "")
-            } else {
-                "Conexión a Bluetooth fallida." + (if (errorMsg != null) " ($errorMsg)" else "")
-            }
-            currentToast = Toast.makeText(applicationContext, message, Toast.LENGTH_LONG)
-            currentToast?.show()
-            binding.textEstadoBluetooth.text = "Desconectado"
-        })
-
-        bluetoothStateManager.deviceDisconnected.observe(this, Observer { eventInfo ->
-            currentToast?.cancel()
-            val deviceName = eventInfo.deviceName ?: "Dispositivo"
-            currentToast = Toast.makeText(applicationContext, "$deviceName desconectado", Toast.LENGTH_SHORT)
-            currentToast?.show()
-            binding.textEstadoBluetooth.text = "Desconectado"
-        })
-
-        // Si MapsActivity también necesita el objeto BluetoothDevice completo:
-        // bluetoothStateManager.deviceConnectedInfo.observe(this, Observer { eventInfo ->
-        //     val device = eventInfo.device
-        //     val displayName = eventInfo.deviceName
-        //     // Haz lo que necesites con esta información
-        // })
-    }
-
     override fun onMapLoaded() {
         loadingDialog.dismiss()
     }
@@ -410,7 +357,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     @SuppressLint("PotentialBehaviorOverride")
     override fun onMapReady(map: GoogleMap) {
-        this@MapsActivity.googleMap = map
+        this@MapsView.googleMap = map
         map.setOnMapLoadedCallback(this)
 
         googleMap.setMapStyle(
@@ -523,7 +470,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
             // Si no es un marcador de vértice, o no estamos en modo edición,
             // dejar que el listener original de marcadores (para dispositivos) maneje el clic.
             // Si es un marcador de dispositivo
-            val dispositivo = viewModel.markerDispositivoMap[marker] // Asumiendo que aún usas este mapa
+            val dispositivo = viewModel.markerRastreadorMap[marker] // Asumiendo que aún usas este mapa
             if (dispositivo != null) {
                 if (viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO) {
                     Log.d("MapsActivity", "Clic en marcador de dispositivo ignorado (modo edición activo).")
@@ -578,6 +525,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
                         // Lógica para dibujar dispositivos...
                         Log.d("MapsActivity", "Dispositivos actualizados: ${listaDispositivos.size}")
                         actualizarDispositivosEnMapa(listaDispositivos)
+                        viewModel.verificarEstadoDispositivos()
                     }
                 }
 
@@ -696,14 +644,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         }
     }
 
-    private fun actualizarDispositivosEnMapa(listaDeDispositivos: List<Dispositivo>) {
+    private fun actualizarDispositivosEnMapa(listaDeRastreadores: List<Rastreador>) {
         if (!::googleMap.isInitialized) return
 
         marcadoresDeDispositivosActuales.forEach { it.remove() }
         marcadoresDeDispositivosActuales.clear()
-        viewModel.markerDispositivoMap.clear()
+        viewModel.markerRastreadorMap.clear()
 
-        listaDeDispositivos.forEach { dispositivo ->
+        listaDeRastreadores.forEach { dispositivo ->
             val iconoMarcador = MarcadorIconHelper.obtenerIconoMarcador(
                 this,
                 dispositivo
@@ -715,19 +663,19 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
                 .icon(iconoMarcador)
             val marcador = googleMap.addMarker(markerOptions)
             if (marcador != null) {
-                viewModel.markerDispositivoMap[marcador] = dispositivo
+                viewModel.markerRastreadorMap[marcador] = dispositivo
                 marcadoresDeDispositivosActuales.add(marcador)
             }
         }
         // Actualizar contadores de UI
-        binding.textTotalDispositivos.text = getString(R.string.dispositivos_total, listaDeDispositivos.size)
+        binding.textTotalDispositivos.text = getString(R.string.dispositivos_total, listaDeRastreadores.size)
         binding.textDispositivosFueraRango.text = getString(
             R.string.dispositivos_fuera_rango,
-            listaDeDispositivos.count { !it.dentroDelArea }
+            listaDeRastreadores.count { !it.dentroDelArea }
         )
         binding.textDispositivosActivos.text = getString(
             R.string.dispositivos_activos,
-            listaDeDispositivos.count { it.activo }
+            listaDeRastreadores.count { it.activo }
         )
     }
 
@@ -745,14 +693,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         }
     }
 
-    private fun mostrarInfoDispositivo(dispositivo: Dispositivo) {
-        val bottomSheet = DispositivoBottomSheetDialog.newInstance(dispositivo)
+    private fun mostrarInfoDispositivo(rastreador: Rastreador) {
+        val bottomSheet = DetailsRastreadorBottomSheet.newInstance(rastreador)
         bottomSheet.show(supportFragmentManager, "DispositivoBottomSheet")
     }
 
     private fun centrarMapa() {
         if (!centrarMapa || viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO
-            || !::googleMap.isInitialized || viewModel.dispositivoSeleccionado.value != null
+            || !::googleMap.isInitialized || viewModel.rastreadorSeleccionado.value != null
         ) return
 
         val bounds = viewModel.obtenerBoundsParaMapa() ?: return
@@ -770,8 +718,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
             })
     }
 
-    private fun centrarDispositivoEnMapa(dispositivo: Dispositivo) {
-        val bounds = viewModel.obtenerBoundsParaDispositivo(dispositivo) ?: return
+    private fun centrarDispositivoEnMapa(rastreador: Rastreador) {
+        val bounds = viewModel.obtenerBoundsParaDispositivo(rastreador) ?: return
 
         val padding = 150
         val cu = CameraUpdateFactory.newLatLngBounds(bounds, padding)
@@ -782,7 +730,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
     private val checkDispositivosRunnable = object : Runnable {
         override fun run() {
             viewModel.verificarEstadoDispositivos()
-            handler.postDelayed(this, 60_000L)
+            handler.postDelayed(this, 10_000L)
         }
     }
 

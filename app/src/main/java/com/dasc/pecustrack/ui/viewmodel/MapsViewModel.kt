@@ -7,12 +7,12 @@ import android.widget.Toast
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dasc.pecustrack.data.model.Dispositivo
+import com.dasc.pecustrack.data.model.Rastreador
 import com.dasc.pecustrack.data.model.Poligono
-import com.dasc.pecustrack.data.repository.DispositivoRepository
+import com.dasc.pecustrack.data.repository.RastreadorRepository
 import com.dasc.pecustrack.data.repository.PoligonoRepository
 import com.dasc.pecustrack.domain.editor.PoligonoEditorManager
-import com.dasc.pecustrack.domain.usecase.device.VerificarEstadoDispositivosUseCase
+import com.dasc.pecustrack.domain.usecase.tracker.VerificarEstadoRastreadoresUseCase
 import com.dasc.pecustrack.location.ILocationProvider
 import com.dasc.pecustrack.utils.LocationUtils.calcularDistancia
 import com.dasc.pecustrack.utils.StringFormatUtils.formatearDistancia
@@ -33,11 +33,11 @@ import javax.inject.Inject
 @HiltViewModel
 class MapsViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
-    private val dispositivoRepository: DispositivoRepository,
+    private val rastreadorRepository: RastreadorRepository,
     private val poligonoRepository: PoligonoRepository,
     private val poligonoEditorManager: PoligonoEditorManager,
     private val locationProvider: ILocationProvider,
-    private val verificarEstadoDispositivosUseCase: VerificarEstadoDispositivosUseCase,
+    private val verificarEstadoRastreadoresUseCase: VerificarEstadoRastreadoresUseCase,
     private val guardarPoligonoUseCase: com.dasc.pecustrack.domain.usecase.polygon.GuardarPoligonoUseCase
 ) : ViewModel() {
 
@@ -46,15 +46,15 @@ class MapsViewModel @Inject constructor(
 
     val distanciaTexto = MutableLiveData<String>()
 
-    private val _dispositivoSeleccionado = MutableStateFlow<Dispositivo?>(null) // Inicializa con null
-    val dispositivoSeleccionado: StateFlow<Dispositivo?> = _dispositivoSeleccionado.asStateFlow()
+    private val _rastreadorSeleccionado = MutableStateFlow<Rastreador?>(null) // Inicializa con null
+    val rastreadorSeleccionado: StateFlow<Rastreador?> = _rastreadorSeleccionado.asStateFlow()
 
-    val markerDispositivoMap = mutableMapOf<Marker, Dispositivo>()
+    val markerRastreadorMap = mutableMapOf<Marker, Rastreador>()
     val idPoligonoActualmenteEnEdicion: StateFlow<Int?> = poligonoEditorManager.idPoligonoEnEdicion
 
     //val dispositivos: LiveData<List<Dispositivo>> get() = _dispositivos
 
-    val dispositivos: StateFlow<List<Dispositivo>> = dispositivoRepository.getAllDispositivos()
+    val dispositivos: StateFlow<List<Rastreador>> = rastreadorRepository.getAllDispositivos()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.Lazily, // O SharingStarted.WhileSubscribed(5000)
@@ -228,8 +228,8 @@ class MapsViewModel @Inject constructor(
 
     fun verificarEstadoDispositivos() {
         viewModelScope.launch {
-            val dispositivosActualizados = verificarEstadoDispositivosUseCase()
-            dispositivoRepository.insertAllDispositivos(dispositivosActualizados)
+            val dispositivosActualizados = verificarEstadoRastreadoresUseCase()
+            rastreadorRepository.insertAllDispositivos(dispositivosActualizados)
         }
     }
 
@@ -256,44 +256,44 @@ class MapsViewModel @Inject constructor(
 
     fun insertarDispositivosEjemplo() {
         val lista = listOf(
-            Dispositivo(1, "Vaquita mú", "Vaca con manchas negras", 24.102455, -110.316152, 1, 1750271280, System.currentTimeMillis(), true),
+            Rastreador(1, "Vaquita mú", "Vaca con manchas negras", 24.102455, -110.316152, 1, 1750271280, System.currentTimeMillis(), true),
             //Dispositivo(2, "Vaquita lechera", "Da mucha leche", 24.1051774, -110.3698646, 1750271280, System.currentTimeMillis(), true),
-            Dispositivo(3, "Vaquita del aramburo", "Casi nos la quita el Chedraui™️", 24.1108454, -110.3129548, 2, 1750271280, 1750271280, false),
-            Dispositivo(4, "Vaquita de la calle", "No es de nadie, pero es de todos", 24.1487217, -110.2767691, 3, 1750271280, System.currentTimeMillis(), true)
+            Rastreador(3, "Vaquita del aramburo", "Casi nos la quita el Chedraui™️", 24.1108454, -110.3129548, 2, 1750271280, 1750271280, false),
+            Rastreador(4, "Vaquita de la calle", "No es de nadie, pero es de todos", 24.1487217, -110.2767691, 3, 1750271280, System.currentTimeMillis(), true)
         )
         viewModelScope.launch {
-            dispositivoRepository.insertAllDispositivos(lista)
+            rastreadorRepository.insertAllDispositivos(lista)
         }
     }
 
-    fun seleccionarDispositivo(dispositivo: Dispositivo) {
-        _dispositivoSeleccionado.value = dispositivo
+    fun seleccionarDispositivo(rastreador: Rastreador) {
+        _rastreadorSeleccionado.value = rastreador
     }
 
     fun deseleccionarDispositivo() {
-        _dispositivoSeleccionado.value = null
+        _rastreadorSeleccionado.value = null
     }
 
-    fun eliminarDispositivo(dispositivo: Dispositivo) {
+    fun eliminarDispositivo(rastreador: Rastreador) {
         viewModelScope.launch {
-            dispositivoRepository.deleteDispositivo(dispositivo)
+            rastreadorRepository.deleteDispositivo(rastreador)
             // Si el dispositivo eliminado es el que está seleccionado, deselecciona
-            if (_dispositivoSeleccionado.value?.id == dispositivo.id) {
-                _dispositivoSeleccionado.value = null
+            if (_rastreadorSeleccionado.value?.id == rastreador.id) {
+                _rastreadorSeleccionado.value = null
             }
         }
     }
 
-    fun actualizarDetallesDispositivo(dispositivoActualizado: Dispositivo) {
+    fun actualizarDetallesDispositivo(rastreadorActualizado: Rastreador) {
         viewModelScope.launch {
             try {
-                dispositivoRepository.updateDispositivo(dispositivoActualizado)
+                rastreadorRepository.updateDispositivo(rastreadorActualizado)
                 // El StateFlow 'dispositivos' se actualizará automáticamente si el repo emite el cambio.
 
                 // Si el dispositivo editado es el que está seleccionado, actualiza también _dispositivoSeleccionado
                 // Si _dispositivoSeleccionado es LiveData:
-                if (_dispositivoSeleccionado.value?.id == dispositivoActualizado.id) {
-                    _dispositivoSeleccionado.value = dispositivoActualizado
+                if (_rastreadorSeleccionado.value?.id == rastreadorActualizado.id) {
+                    _rastreadorSeleccionado.value = rastreadorActualizado
                 }
                 // Si _dispositivoSeleccionado fuera un MutableStateFlow:
                 // if (_dispositivoSeleccionado.value?.id == dispositivoActualizado.id) {
@@ -330,12 +330,12 @@ class MapsViewModel @Inject constructor(
         return builder.build()
     }
 
-    fun obtenerBoundsParaDispositivo(dispositivo: Dispositivo): LatLngBounds? {
+    fun obtenerBoundsParaDispositivo(rastreador: Rastreador): LatLngBounds? {
         val listPuntos = mutableListOf<LatLng>()
         _userLocation.value?.let { location ->
             listPuntos.add(LatLng(location.latitude, location.longitude))
         }
-        listPuntos.add(LatLng(dispositivo.latitud, dispositivo.longitud))
+        listPuntos.add(LatLng(rastreador.latitud, rastreador.longitud))
 
         if (listPuntos.isEmpty()) return null
         val builder = LatLngBounds.Builder()
@@ -354,7 +354,7 @@ class MapsViewModel @Inject constructor(
     }
 
     private fun recalcularDistancias(ubicacionActual: Location) {
-        dispositivoSeleccionado.value?.let { dispositivo ->
+        rastreadorSeleccionado.value?.let { dispositivo ->
             val distancia = calcularDistancia(
                 ubicacionActual,
                 Location("").apply {
@@ -367,7 +367,7 @@ class MapsViewModel @Inject constructor(
     }
 
     fun calcularDistancias() {
-        dispositivoSeleccionado.value?.let { dispositivo ->
+        rastreadorSeleccionado.value?.let { dispositivo ->
             val distancia = calcularDistancia(
                 userLocation.value ?: return,
                 Location("").apply {

@@ -3,7 +3,7 @@ package com.dasc.pecustrack.di
 import android.content.Context
 import androidx.room.Room
 import com.dasc.pecustrack.data.database.AppDatabase
-import com.dasc.pecustrack.data.database.dao.DispositivoDao
+import com.dasc.pecustrack.data.database.dao.RastreadorDao
 import com.dasc.pecustrack.data.database.dao.PoligonoDao
 import com.dasc.pecustrack.utils.NotificationHelper
 import dagger.Module
@@ -29,8 +29,8 @@ object AppModule {
     }
 
     @Provides
-    fun provideDispositivoDao(appDatabase: AppDatabase): DispositivoDao {
-        return appDatabase.dispositivoDao()
+    fun provideRastreadorDao(appDatabase: AppDatabase): RastreadorDao {
+        return appDatabase.rastreadorDao()
     }
 
     @Provides

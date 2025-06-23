@@ -92,6 +92,50 @@ object NotificationHelper {
         return builder.build()
     }
 
+    fun showTrackerOutOfAreaNotification(
+        context: Context,
+        trackerName: String,
+        trackerId: Int
+    ) {
+        val channelId = DATA_UPDATE_CHANNEL_ID
+        val title = context.getString(R.string.notification_device_out_of_range_title, trackerName)
+        val contentText = context.getString(R.string.notification_device_out_of_range_text, trackerId)
+
+        showNotification(context,
+            trackerId,
+            createBasicNotification(
+                context = context,
+                channelId = channelId,
+                title = title,
+                contentText = contentText,
+                smallIconResId = R.drawable.cow_warning,
+                autoCancel = true,
+                onGoing = true)
+        )
+    }
+
+    fun showTrackerDisconnectedNotification(
+        context: Context,
+        trackerName: String,
+        trackerId: Int
+    ) {
+        val channelId = DATA_UPDATE_CHANNEL_ID // Usa el canal de actualizaciones de datos
+        val title = context.getString(R.string.notification_device_disconnected_title, trackerId)
+        val contentText = context.getString(R.string.notification_device_disconnected_text, trackerName)
+
+        showNotification(context,
+            trackerId,
+            createBasicNotification(
+                context = context,
+                channelId = channelId,
+                title = title,
+                contentText = contentText,
+                smallIconResId = R.drawable.cow_warning,
+                autoCancel = true,
+                onGoing = true)
+        )
+    }
+
     /**
      * Muestra una notificación.
      *

@@ -1,16 +1,12 @@
 package com.dasc.pecustrack.utils
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.PorterDuff
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.DrawableCompat
 import com.dasc.pecustrack.R
-import com.dasc.pecustrack.data.model.Dispositivo
+import com.dasc.pecustrack.data.model.Rastreador
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import androidx.core.graphics.createBitmap
@@ -47,21 +43,21 @@ object MarcadorIconHelper {
 
     fun obtenerIconoMarcador(
         context: Context,
-        dispositivo: Dispositivo,
+        rastreador: Rastreador,
         escalaIconoPrincipal: Float = 0.8f, // Escala para el ícono principal
         escalaInsignia: Float = 0.5f     // Escala para la insignia
     ): BitmapDescriptor? {
         val claveCache = generarClaveCache(
-            dispositivo.tipoAnimal,
-            dispositivo.activo,
-            dispositivo.dentroDelArea
+            rastreador.tipoAnimal,
+            rastreador.activo,
+            rastreador.dentroDelArea
         )
 
         if (cache.containsKey(claveCache)) {
             return cache[claveCache]
         }
 
-        val iconoBaseResId = when (dispositivo.tipoAnimal) {
+        val iconoBaseResId = when (rastreador.tipoAnimal) {
             TIPO_ANIMAL_VACA -> R.drawable.cow
             TIPO_ANIMAL_CABALLO -> R.drawable.horse
             TIPO_ANIMAL_OVEJA -> R.drawable.sheep
@@ -74,22 +70,22 @@ object MarcadorIconHelper {
         var iconoInsigniaResId: Int? = null
 
         when {
-            !dispositivo.activo && !dispositivo.dentroDelArea -> {
+            !rastreador.activo && !rastreador.dentroDelArea -> {
                 // Inactivo y fuera del área
                 colorTinte = COLOR_INACTIVO
                 iconoInsigniaResId = BADGE_FUERA_AREA_E_INACTIVO
             }
-            !dispositivo.activo && dispositivo.dentroDelArea -> {
+            !rastreador.activo && rastreador.dentroDelArea -> {
                 // Inactivo pero dentro del área
                 colorTinte = COLOR_INACTIVO
                 iconoInsigniaResId = BADGE_INACTIVO
             }
-            dispositivo.activo && !dispositivo.dentroDelArea -> {
+            rastreador.activo && !rastreador.dentroDelArea -> {
                 // Activo pero fuera del área
                 colorTinte = COLOR_FUERA_AREA
                 iconoInsigniaResId = BADGE_FUERA_AREA
             }
-            dispositivo.activo && dispositivo.dentroDelArea -> {
+            rastreador.activo && rastreador.dentroDelArea -> {
                 // Activo y dentro del área, no se usa insignia
                 colorTinte = COLOR_NORMAL
                 iconoInsigniaResId = BADGE_ACTIVO

@@ -5,35 +5,34 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.fragment.app.activityViewModels
 import com.dasc.pecustrack.R
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.dasc.pecustrack.data.model.Dispositivo // Asegúrate que la ruta sea correcta
-import com.dasc.pecustrack.databinding.BottomSheetEditDispositivoBinding // ViewBinding
+import com.dasc.pecustrack.data.model.Rastreador // Asegúrate que la ruta sea correcta
+import com.dasc.pecustrack.databinding.BottomSheetEditRastreadorBinding // ViewBinding
 import com.dasc.pecustrack.ui.viewmodel.MapsViewModel // Asegúrate que la ruta sea correcta
 
 
-class EditDispositivoBottomSheet : BottomSheetDialogFragment() {
+class EditRastreadorBottomSheet : BottomSheetDialogFragment() {
 
-    private var _binding: BottomSheetEditDispositivoBinding? = null
+    private var _binding: BottomSheetEditRastreadorBinding? = null
     private val binding get() = _binding!!
 
     // Usar activityViewModels si el ViewModel es compartido con la Activity
     private val viewModel: MapsViewModel by activityViewModels()
 
-    private var dispositivoActual: Dispositivo? = null
+    private var rastreadorActual: Rastreador? = null
 
     companion object {
         const val TAG = "EditDispositivoBottomSheet"
         private const val ARG_DISPOSITIVO = "dispositivo_a_editar"
 
-        fun newInstance(dispositivo: Dispositivo): EditDispositivoBottomSheet {
-            val fragment = EditDispositivoBottomSheet()
+        fun newInstance(rastreador: Rastreador): EditRastreadorBottomSheet {
+            val fragment = EditRastreadorBottomSheet()
             val args = Bundle()
-            args.putParcelable(ARG_DISPOSITIVO, dispositivo)
+            args.putParcelable(ARG_DISPOSITIVO, rastreador)
             fragment.arguments = args
             return fragment
         }
@@ -55,14 +54,14 @@ class EditDispositivoBottomSheet : BottomSheetDialogFragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = BottomSheetEditDispositivoBinding.inflate(inflater, container, false)
+        _binding = BottomSheetEditRastreadorBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        if (dispositivoActual == null) {
+        if (rastreadorActual == null) {
             // Si no se pasó un dispositivo para editar, cerramos el diálogo
             Toast.makeText(context, "Error: No se proporcionó dispositivo para editar.", Toast.LENGTH_SHORT).show()
             dismiss()
@@ -71,7 +70,7 @@ class EditDispositivoBottomSheet : BottomSheetDialogFragment() {
 
         setupTipoAnimalSpinner()
 
-        dispositivoActual?.let { disp ->
+        rastreadorActual?.let { disp ->
             binding.editTextNombre.setText(disp.nombre)
             binding.editTextDescripcion.setText(disp.descripcion)
             if (disp.tipoAnimal >= 0 && disp.tipoAnimal < (binding.spinnerTipoAnimal.adapter?.count ?: 0)) {
@@ -103,7 +102,7 @@ class EditDispositivoBottomSheet : BottomSheetDialogFragment() {
 
         val tipoAnimalNuevo = binding.spinnerTipoAnimal.selectedItemPosition
 
-        dispositivoActual?.let { dispositivoOriginal ->
+        rastreadorActual?.let { dispositivoOriginal ->
             val dispositivoEditado = dispositivoOriginal.copy(
                 // Usa .copy() en el objeto original
                 nombre = nombreNuevo,
@@ -121,8 +120,8 @@ class EditDispositivoBottomSheet : BottomSheetDialogFragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            dispositivoActual = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                it.getParcelable(ARG_DISPOSITIVO, Dispositivo::class.java)
+            rastreadorActual = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                it.getParcelable(ARG_DISPOSITIVO, Rastreador::class.java)
             } else {
                 @Suppress("DEPRECATION")
                 it.getParcelable(ARG_DISPOSITIVO)

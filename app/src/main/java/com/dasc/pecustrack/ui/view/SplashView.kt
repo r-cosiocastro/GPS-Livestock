@@ -56,7 +56,7 @@ class SplashView : AppCompatActivity() {
         if (!missingPermissions.isEmpty()) {
             requestPermissionsLauncher.launch(missingPermissions.toTypedArray())
         } else{
-            val intent = Intent(this, MapsActivity::class.java)
+            val intent = Intent(this, MapsView::class.java)
             startActivity(intent)
             finish()
         }
@@ -72,7 +72,7 @@ class SplashView : AppCompatActivity() {
             }
             if (allGranted) {
                 Log.d("SplashView", "All permissions granted")
-                val intent = Intent(this, MapsActivity::class.java)
+                val intent = Intent(this, MapsView::class.java)
                 startActivity(intent)
                 finish()
             } else {

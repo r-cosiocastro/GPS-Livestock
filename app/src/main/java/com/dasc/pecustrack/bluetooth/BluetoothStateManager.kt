@@ -3,84 +3,61 @@ package com.dasc.pecustrack.bluetooth
 import android.bluetooth.BluetoothDevice
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import com.dasc.pecustrack.bluetooth.BluetoothService
-import dagger.hilt.android.scopes.ActivityRetainedScoped
+import com.dasc.pecustrack.ui.adapter.BleDevice
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class ConnectionEventInfo(
-    val deviceName: String?,
+// Data class para eventos de conexión, similar a tu ConnectionEventInfo pero más simple si solo necesitas el nombre
+data class ConnectionStatusInfo(
+    val deviceDisplayName: String?, // Nombre ya resuelto o dirección como fallback
     val errorMessage: String? = null,
-    val device: BluetoothDevice? = null // Para ACTION_DEVICE_CONNECTED_INFO si aún lo necesitas
+    val device: BluetoothDevice? = null // Opcional, si la UI necesita el objeto completo
 )
 
 @Singleton
 class BluetoothStateManager @Inject constructor() {
-    private val _scanResults = MutableLiveData<List<BluetoothDevice>>()
-    val scanResults: LiveData<List<BluetoothDevice>> = _scanResults
+    // --- Escaneo ---
+    private val _scanStarted = MutableLiveData<Unit>()
+    val scanStarted: LiveData<Unit> = _scanStarted
 
-    // Si el escaneo falla o se detiene
-    private val _scanFailed = MutableLiveData<Int>() // Podrías usar un Int para el código de error o un objeto de evento más rico
+    private val _scanResults = MutableLiveData<List<BleDevice>>() // Usa tu DiscoveredDeviceInfo
+    val scanResults: LiveData<List<BleDevice>> = _scanResults
+
+    private val _scanFailed = MutableLiveData<Int>()
     val scanFailed: LiveData<Int> = _scanFailed
 
-    private val _scanStopped = MutableLiveData<Unit>() // Evento simple para indicar que el escaneo se detuvo
+    private val _scanStopped = MutableLiveData<Unit>()
     val scanStopped: LiveData<Unit> = _scanStopped
 
-    // Para ACTION_RECONNECT_ATTEMPTING
-    private val _reconnectAttempting = MutableLiveData<ConnectionEventInfo>()
-    val reconnectAttempting: LiveData<ConnectionEventInfo> = _reconnectAttempting
+    // --- Conexión ---
+    private val _attemptingConnection = MutableLiveData<String>() // Solo el nombre del dispositivo
+    val attemptingConnection: LiveData<String> = _attemptingConnection
 
-    // Para ACTION_CONNECTION_SUCCESSFUL
-    private val _connectionSuccessful = MutableLiveData<ConnectionEventInfo>()
-    val connectionSuccessful: LiveData<ConnectionEventInfo> = _connectionSuccessful
+    // Usaremos ConnectionStatusInfo para los siguientes
+    private val _connectionSuccessful = MutableLiveData<ConnectionStatusInfo>()
+    val connectionSuccessful: LiveData<ConnectionStatusInfo> = _connectionSuccessful
 
-    // Para ACTION_CONNECTION_FAILED
-    private val _connectionFailed = MutableLiveData<ConnectionEventInfo>()
-    val connectionFailed: LiveData<ConnectionEventInfo> = _connectionFailed
+    private val _connectionFailed = MutableLiveData<ConnectionStatusInfo>()
+    val connectionFailed: LiveData<ConnectionStatusInfo> = _connectionFailed
 
-    // Para ACTION_DEVICE_DISCONNECTED
-    private val _deviceDisconnected = MutableLiveData<ConnectionEventInfo>()
-    val deviceDisconnected: LiveData<ConnectionEventInfo> = _deviceDisconnected
+    private val _deviceDisconnected = MutableLiveData<ConnectionStatusInfo>()
+    val deviceDisconnected: LiveData<ConnectionStatusInfo> = _deviceDisconnected
 
-    // Para ACTION_DEVICE_CONNECTED_INFO (si MapsActivity o DeviceActivity necesitan el objeto BluetoothDevice además del nombre)
-    // Si solo necesitan el nombre, connectionSuccessful podría ser suficiente.
-    private val _deviceConnectedInfo = MutableLiveData<ConnectionEventInfo>()
-    val deviceConnectedInfo: LiveData<ConnectionEventInfo> = _deviceConnectedInfo
 
-    fun postScanResults(devices: List<BluetoothDevice>) {
-        _scanResults.postValue(devices)
+    // Funciones para que BluetoothService actualice (sin lógica de permisos aquí)
+    fun postScanStarted() { _scanStarted.postValue(Unit) }
+    fun postScanResults(devicesInfo: List<BleDevice>) { _scanResults.postValue(devicesInfo) }
+    fun postScanFailed(errorCode: Int) { _scanFailed.postValue(errorCode) }
+    fun postScanStopped() { _scanStopped.postValue(Unit) }
+
+    fun postAttemptingConnection(deviceName: String) { _attemptingConnection.postValue(deviceName) }
+    fun postConnectionSuccessful(displayName: String, device: BluetoothDevice) {
+        _connectionSuccessful.postValue(ConnectionStatusInfo(displayName, device = device))
     }
-
-    fun postScanFailed(errorCode: Int) {
-        _scanFailed.postValue(errorCode)
+    fun postConnectionFailed(displayName: String?, errorMessage: String?) {
+        _connectionFailed.postValue(ConnectionStatusInfo(displayName, errorMessage))
     }
-
-    fun postScanStopped() {
-        _scanStopped.postValue(Unit)
-    }
-
-    // Funciones para que el BluetoothService actualice los estados
-    fun postReconnectAttempting(deviceName: String) {
-        _reconnectAttempting.postValue(ConnectionEventInfo(deviceName))
-    }
-
-    fun postConnectionSuccessful(deviceName: String, device: BluetoothDevice? = null) {
-        _connectionSuccessful.postValue(ConnectionEventInfo(deviceName, device = device))
-        // Si ACTION_DEVICE_CONNECTED_INFO se vuelve redundante, considera fusionar
-        if (device != null) {
-            _deviceConnectedInfo.postValue(ConnectionEventInfo(deviceName, device = device))
-        }
-    }
-
-    fun postConnectionFailed(deviceName: String?, errorMessage: String?) {
-        _connectionFailed.postValue(ConnectionEventInfo(deviceName, errorMessage))
-    }
-
-    fun postDeviceDisconnected(deviceName: String?) {
-        _deviceDisconnected.postValue(ConnectionEventInfo(deviceName))
-    }
-
-    fun postDeviceConnectedInfo(device: BluetoothDevice, displayName: String) { // Específicamente para mantener la estructura actual
-        _deviceConnectedInfo.postValue(ConnectionEventInfo(displayName, device = device))
+    fun postDeviceDisconnected(displayName: String?) {
+        _deviceDisconnected.postValue(ConnectionStatusInfo(displayName))
     }
 }

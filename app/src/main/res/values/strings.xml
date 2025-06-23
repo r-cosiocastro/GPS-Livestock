@@ -42,9 +42,20 @@
     <string name="dialog_progress">Cargando</string>
     <string name="estado_bluetooth">Estado del bluetooth: %1$s</string>
     <string name="device_bluetooth_connected_to">Conectado a: %1$s</string>
+    <string name="device_bluetooth">Conectado</string>
     <string name="device_bluetooth_disconnected">Desconectado</string>
-    <string name="device_disconnect_button_text">Desconectar</string>
+    <string name="device_connect_button_text">Desconectado</string>
     <string name="ruta_al_dispositivo">Ruta al dispositivo</string>
+
+    <!-- Notificaciones -->
+    <string name="notification_new_device_title">¡Nuevo dispositivo encontrado!</string>
+    <string name="notification_new_device_text">Se detectó el dispositivo: %1$s</string>
+
+    <string name="notification_device_out_of_range_title">%1$s ha salido del área de pastoreo</string>
+    <string name="notification_device_out_of_range_text">El rastreador %1$d ha salido del área de pastoreo.</string>
+
+    <string name="notification_device_disconnected_title">Rastreador desconectado %1$d</string>
+    <string name="notification_device_disconnected_text">Se ha perdido la conexión con el rastreador %1$s.</string>
 
     <string-array name="tipos_animal_nombres">
         <item>Vaca</item>

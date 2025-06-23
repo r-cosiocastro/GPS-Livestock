@@ -18,7 +18,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.dasc.pecustrack.R
-import com.dasc.pecustrack.data.model.Dispositivo
+import com.dasc.pecustrack.data.model.Rastreador
 import com.dasc.pecustrack.ui.viewmodel.MapsViewModel
 import com.dasc.pecustrack.utils.MarcadorIconHelper.TIPO_ANIMAL_CABALLO
 import com.dasc.pecustrack.utils.MarcadorIconHelper.TIPO_ANIMAL_CABRA
@@ -31,13 +31,13 @@ import com.dasc.pecustrack.utils.TextUtils.boldTitleFromResource
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.coroutines.launch
 
-class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
+class DetailsRastreadorBottomSheet : BottomSheetDialogFragment() {
     private val viewModel: MapsViewModel by activityViewModels()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        return inflater.inflate(R.layout.bottom_sheet_dispositivo, container, false)
+        return inflater.inflate(R.layout.bottom_sheet_rastreador, container, false)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -57,15 +57,15 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.dispositivoSeleccionado.collect { dispositivo ->
+                viewModel.rastreadorSeleccionado.collect { dispositivo ->
                     if (dispositivo != null) {
                         textTitulo.text = dispositivo.nombre
                         textDescripcion.text = dispositivo.descripcion
                         actualizarInformacionDinamica(dispositivo)
 
                         btnEditar.setOnClickListener {
-                            val editSheet = EditDispositivoBottomSheet.newInstance(dispositivo)
-                            editSheet.show(parentFragmentManager, EditDispositivoBottomSheet.TAG)
+                            val editSheet = EditRastreadorBottomSheet.newInstance(dispositivo)
+                            editSheet.show(parentFragmentManager, EditRastreadorBottomSheet.TAG)
                             Log.d(
                                 "DispositivoBottomSheetDialog",
                                 "Edit button clicked for device: ${dispositivo.nombre}"
@@ -115,31 +115,31 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
     }
 
     companion object {
-        fun newInstance(dispositivo: Dispositivo): DispositivoBottomSheetDialog {
-            val fragment = DispositivoBottomSheetDialog()
+        fun newInstance(rastreador: Rastreador): DetailsRastreadorBottomSheet {
+            val fragment = DetailsRastreadorBottomSheet()
             val bundle = Bundle().apply {
-                putParcelable("dispositivo", dispositivo)
+                putParcelable("dispositivo", rastreador)
             }
             fragment.arguments = bundle
             return fragment
         }
     }
 
-    private fun actualizarInformacionDinamica(dispositivo: Dispositivo?) {
+    private fun actualizarInformacionDinamica(rastreador: Rastreador?) {
         val context = requireContext()
-        val textoConexion = formatearTiempoConexion(dispositivo?.ultimaConexion)
-        val textoEstado = if (dispositivo != null) {
+        val textoConexion = formatearTiempoConexion(rastreador?.ultimaConexion)
+        val textoEstado = if (rastreador != null) {
             when {
-                !dispositivo.activo && !dispositivo.dentroDelArea -> "Fuera del área e inactivo"
-                !dispositivo.activo -> "Inactivo"
-                !dispositivo.dentroDelArea -> "Fuera del área"
+                !rastreador.activo && !rastreador.dentroDelArea -> "Fuera del área e inactivo"
+                !rastreador.activo -> "Inactivo"
+                !rastreador.dentroDelArea -> "Fuera del área"
                 else -> "Activo y dentro del área"
             }
         } else {
             "Desconocido"
         }
 
-        val icono = when (dispositivo?.tipoAnimal) {
+        val icono = when (rastreador?.tipoAnimal) {
             TIPO_ANIMAL_VACA -> R.drawable.ic_cow
             TIPO_ANIMAL_CABALLO -> R.drawable.ic_horse
             TIPO_ANIMAL_OVEJA -> R.drawable.ic_sheep
@@ -158,10 +158,10 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
             boldTitleFromResource(context, R.string.estado_del_dispositivo, textoEstado)
         view?.findViewById<TextView>(R.id.textEstado)?.setTextColor(
             when {
-                dispositivo == null -> resources.getColor(R.color.colorEstadoDesconocido, null)
-                !dispositivo.activo && !dispositivo.dentroDelArea -> resources.getColor(R.color.colorEstadoInactivoFueraArea, null)
-                !dispositivo.activo -> resources.getColor(R.color.colorEstadoInactivo, null)
-                !dispositivo.dentroDelArea -> resources.getColor(R.color.colorEstadoFueraArea, null)
+                rastreador == null -> resources.getColor(R.color.colorEstadoDesconocido, null)
+                !rastreador.activo && !rastreador.dentroDelArea -> resources.getColor(R.color.colorEstadoInactivoFueraArea, null)
+                !rastreador.activo -> resources.getColor(R.color.colorEstadoInactivo, null)
+                !rastreador.dentroDelArea -> resources.getColor(R.color.colorEstadoFueraArea, null)
                 else -> resources.getColor(R.color.colorEstadoActivoDentroArea, null)
             }
         )
@@ -169,12 +169,12 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
         view?.findViewById<TextView>(R.id.textTipoAnimal)?.text = boldTitleFromResource(
             context,
             R.string.tipo_de_animal,
-            obtenerNombreTipoAnimal(dispositivo)
+            obtenerNombreTipoAnimal(rastreador)
         )
     }
 
-    private fun obtenerNombreTipoAnimal(dispositivo: Dispositivo?): String {
-        return when (dispositivo?.tipoAnimal) {
+    private fun obtenerNombreTipoAnimal(rastreador: Rastreador?): String {
+        return when (rastreador?.tipoAnimal) {
             TIPO_ANIMAL_VACA -> "Vaca"
             TIPO_ANIMAL_CABALLO -> "Caballo"
             TIPO_ANIMAL_OVEJA -> "Oveja"
@@ -187,7 +187,7 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
     private val handler = Handler(Looper.getMainLooper())
     private val actualizarTiempoRunnable = object : Runnable {
         override fun run() {
-            val dispositivoActual = viewModel.dispositivoSeleccionado.value
+            val dispositivoActual = viewModel.rastreadorSeleccionado.value
             actualizarInformacionDinamica(dispositivoActual)
 
             if (isVisible && dispositivoActual != null) {
@@ -198,7 +198,7 @@ class DispositivoBottomSheetDialog : BottomSheetDialogFragment() {
 
     override fun onResume() {
         super.onResume()
-        if (viewModel.dispositivoSeleccionado.value != null) {
+        if (viewModel.rastreadorSeleccionado.value != null) {
             handler.post(actualizarTiempoRunnable)
         }
     }

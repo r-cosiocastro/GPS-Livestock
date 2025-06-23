@@ -10,8 +10,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.dasc.pecustrack.R
 
 class BleDeviceListAdapter(
-    private val onItemClicked: (DiscoveredDeviceInfo) -> Unit
-) : ListAdapter<DiscoveredDeviceInfo, BleDeviceListAdapter.DeviceViewHolder>(BleDeviceDiffCallback()) {
+    private val onItemClicked: (BleDevice) -> Unit
+) : ListAdapter<BleDevice, BleDeviceListAdapter.DeviceViewHolder>(BleDeviceDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DeviceViewHolder {
         val view = LayoutInflater.from(parent.context)
@@ -31,19 +31,19 @@ class BleDeviceListAdapter(
         private val nameTextView: TextView = itemView.findViewById(R.id.textViewDeviceName)
         private val addressTextView: TextView = itemView.findViewById(R.id.textViewDeviceAddress)
 
-        fun bind(deviceItem: DiscoveredDeviceInfo) {
-            nameTextView.text = deviceItem.displayName
+        fun bind(deviceItem: BleDevice) {
+            nameTextView.text = deviceItem.resolvedName
             addressTextView.text = deviceItem.address
         }
     }
 
-    class BleDeviceDiffCallback : DiffUtil.ItemCallback<DiscoveredDeviceInfo>() {
-        override fun areItemsTheSame(oldItem: DiscoveredDeviceInfo, newItem: DiscoveredDeviceInfo): Boolean {
-            return oldItem.id == newItem.id
+    class BleDeviceDiffCallback : DiffUtil.ItemCallback<BleDevice>() {
+        override fun areItemsTheSame(oldItem: BleDevice, newItem: BleDevice): Boolean {
+            return oldItem.address == newItem.address
         }
 
-        override fun areContentsTheSame(oldItem: DiscoveredDeviceInfo, newItem: DiscoveredDeviceInfo): Boolean {
-            return oldItem.displayName == newItem.displayName && oldItem.address == newItem.address
+        override fun areContentsTheSame(oldItem: BleDevice, newItem: BleDevice): Boolean {
+            return oldItem.resolvedName == newItem.resolvedName && oldItem.address == newItem.address
         }
     }
 }

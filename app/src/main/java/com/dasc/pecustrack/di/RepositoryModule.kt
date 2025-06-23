@@ -1,7 +1,7 @@
 package com.dasc.pecustrack.di
 
-import com.dasc.pecustrack.data.repository.DispositivoRepository
-import com.dasc.pecustrack.data.repository.DispositivoRepositoryImpl
+import com.dasc.pecustrack.data.repository.RastreadorRepository
+import com.dasc.pecustrack.data.repository.RastreadorRepositoryImpl
 import com.dasc.pecustrack.data.repository.PoligonoRepository
 import com.dasc.pecustrack.data.repository.PoligonoRepositoryImpl
 import dagger.Binds
@@ -16,9 +16,9 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
-    abstract fun bindDispositivoRepository(
-        impl: DispositivoRepositoryImpl
-    ): DispositivoRepository
+    abstract fun bindRastreadorRepository(
+        impl: RastreadorRepositoryImpl
+    ): RastreadorRepository
 
     @Binds
     @Singleton

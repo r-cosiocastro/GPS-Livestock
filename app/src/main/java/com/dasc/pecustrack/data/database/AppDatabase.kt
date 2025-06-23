@@ -5,9 +5,9 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters // Si necesitas TypeConverters
-import com.dasc.pecustrack.data.database.dao.DispositivoDao
+import com.dasc.pecustrack.data.database.dao.RastreadorDao
 import com.dasc.pecustrack.data.database.dao.PoligonoDao
-import com.dasc.pecustrack.data.model.Dispositivo // Importa tu entidad Dispositivo
+import com.dasc.pecustrack.data.model.Rastreador // Importa tu entidad Dispositivo
 import com.dasc.pecustrack.data.model.Poligono
 import com.dasc.pecustrack.utils.LatLngListConverter
 
@@ -21,7 +21,7 @@ import com.dasc.pecustrack.utils.LatLngListConverter
 
 @Database(
     entities = [
-        Dispositivo::class,
+        Rastreador::class,
         Poligono::class
     ],
     version = 1,
@@ -31,7 +31,7 @@ import com.dasc.pecustrack.utils.LatLngListConverter
 abstract class AppDatabase : RoomDatabase() {
 
     // Define métodos abstractos para cada DAO
-    abstract fun dispositivoDao(): DispositivoDao
+    abstract fun rastreadorDao(): RastreadorDao
     abstract fun poligonoDao(): PoligonoDao
 
     companion object {
