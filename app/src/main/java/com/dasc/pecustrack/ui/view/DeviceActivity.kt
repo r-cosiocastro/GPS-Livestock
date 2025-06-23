@@ -1,21 +1,23 @@
 package com.dasc.pecustrack.ui.view
 
-import android.app.Activity
+import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
-import androidx.recyclerview.widget.DividerItemDecoration
+import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.dasc.pecustrack.R
 import com.dasc.pecustrack.databinding.ActivitySelectDeviceBinding
-import com.dasc.pecustrack.ui.adapter.BluetoothDeviceAdapter
+import com.dasc.pecustrack.ui.adapter.BleDeviceListAdapter
 import com.dasc.pecustrack.ui.viewmodel.BluetoothViewModel
 import com.dasc.pecustrack.utils.LoadingDialog
 import dagger.hilt.android.AndroidEntryPoint
@@ -24,12 +26,12 @@ import dagger.hilt.android.AndroidEntryPoint
 class DeviceActivity : AppCompatActivity() {
     private lateinit var binding: ActivitySelectDeviceBinding
     private val bluetoothViewModel: BluetoothViewModel by viewModels()
-    private lateinit var deviceAdapter: BluetoothDeviceAdapter
+    private lateinit var bleDeviceListAdapter: BleDeviceListAdapter
     private lateinit var loadingDialog: LoadingDialog
 
     private val enableBluetoothLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
+            if (result.resultCode == RESULT_OK) {
                 startScanDevices() // Bluetooth activado, iniciar escaneo
             } else {
                 Toast.makeText(this, "Bluetooth no fue activado.", Toast.LENGTH_SHORT).show()
@@ -39,6 +41,7 @@ class DeviceActivity : AppCompatActivity() {
         }
 
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivitySelectDeviceBinding.inflate(layoutInflater)
@@ -52,7 +55,7 @@ class DeviceActivity : AppCompatActivity() {
 
         binding.buttonEscanear.setOnClickListener {
             // Limpiar la lista anterior antes de un nuevo escaneo
-            deviceAdapter.submitList(emptyList())
+            bleDeviceListAdapter.submitList(emptyList())
             bluetoothViewModel.scannedDevices.value?.let { // Limpiar la lista en el ViewModel también
                 if (it.isNotEmpty()) {
                     // No puedes modificar directamente _scannedDevices desde aquí,
@@ -63,6 +66,11 @@ class DeviceActivity : AppCompatActivity() {
             checkBluetoothAndStartScan()
         }
 
+        bluetoothViewModel.scannedDiscoveredDeviceItems.observe(this, Observer { deviceItems ->
+            Log.d("DeviceActivity_SCAN", "Actualizando lista de UI con ${deviceItems.size} BleDeviceItems")
+            bleDeviceListAdapter.submitList(deviceItems)
+        })
+
         observeViewModel()
     }
 
@@ -72,19 +80,26 @@ class DeviceActivity : AppCompatActivity() {
         return true
     }
 
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun setupRecyclerView() {
-        deviceAdapter = BluetoothDeviceAdapter { device ->
-            // Acción al hacer clic en un dispositivo: intentar conectar
-            bluetoothViewModel.connectToDevice(device)
-            // Aquí puedes mostrar un diálogo de "Conectando..."
-            // y observar connectionStatus para cerrarlo o mostrar errores.
-            // Toast.makeText(this, "Conectando a ${getDeviceNameSafe(device)}...", Toast.LENGTH_SHORT).show()
-            // Podrías querer deshabilitar más clics mientras se conecta.
+        bleDeviceListAdapter = BleDeviceListAdapter { deviceItem ->
+            // Acción al hacer clic en un dispositivo de la lista
+            Log.d("DeviceActivity_SCAN", "Dispositivo clickeado: ${deviceItem.displayName} (${deviceItem.address})")
+            // Aquí puedes iniciar la conexión usando deviceItem.bluetoothDevice
+            // bluetoothViewModel.connectToDevice(deviceItem.bluetoothDevice)
+            // Opcional: mostrar un diálogo de conexión, detener el escaneo si está activo, etc.
+            if (bluetoothViewModel.isScanning.value == true) {
+                bluetoothViewModel.stopScan() // Detener escaneo antes de intentar conectar
+            }
+            bluetoothViewModel.connectToDevice(deviceItem.bluetoothDevice) // Asumiendo que tienes esta función en tu ViewModel
         }
+
         binding.recyclerViewDispositivos.apply {
-            adapter = deviceAdapter
+            adapter = bleDeviceListAdapter
             layoutManager = LinearLayoutManager(this@DeviceActivity)
-            addItemDecoration(DividerItemDecoration(this@DeviceActivity, DividerItemDecoration.VERTICAL))
+            // Opcional: añadir ItemDecoration si quieres divisores
+            // addItemDecoration(DividerItemDecoration(this@DeviceActivity, DividerItemDecoration.VERTICAL))
         }
     }
 
@@ -138,7 +153,7 @@ class DeviceActivity : AppCompatActivity() {
             else {
                 binding.textViewEstadoScan.visibility = View.GONE
             }
-            deviceAdapter.submitList(devices)
+            bleDeviceListAdapter.submitList(devices)
             binding.recyclerViewDispositivos.visibility = if (devices.isNullOrEmpty()) View.GONE else View.VISIBLE
             binding.progressBarScan.visibility = View.GONE // Ocultar ProgressBar al recibir dispositivos
             // binding.buttonEscanear.isEnabled = true // Habilitar botón de escaneo nuevamente
@@ -170,7 +185,7 @@ class DeviceActivity : AppCompatActivity() {
             } else if (status.contains("Error") || status.contains("finalizado") || status.contains("Desconectado")) {
                 binding.progressBarScan.visibility = View.GONE
                 binding.textViewEstadoScan.text = status
-                binding.textViewEstadoScan.visibility = if (deviceAdapter.itemCount == 0) View.VISIBLE else View.GONE
+                binding.textViewEstadoScan.visibility = if (bleDeviceListAdapter.itemCount == 0) View.VISIBLE else View.GONE
                 binding.buttonEscanear.isEnabled = true
             }
         }
@@ -186,6 +201,7 @@ class DeviceActivity : AppCompatActivity() {
         }
     }
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun checkBluetoothAndStartScan() {
         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
         if (bluetoothAdapter == null) {
@@ -201,6 +217,7 @@ class DeviceActivity : AppCompatActivity() {
         }
     }
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun startScanDevices() {
         // Mostrar ProgressBar y actualizar texto
         binding.progressBarScan.visibility = View.VISIBLE

@@ -29,11 +29,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class ModoEdicionPoligono {
-    NINGUNO,    // No se está creando ni editando
-    CREANDO,    // Creando un nuevo polígono
-    EDITANDO    // Editando un polígono existente (esta parte es más compleja y puede requerir más estado)
-}
+
 @HiltViewModel
 class MapsViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
@@ -291,7 +287,7 @@ class MapsViewModel @Inject constructor(
     fun actualizarDetallesDispositivo(dispositivoActualizado: Dispositivo) {
         viewModelScope.launch {
             try {
-                dispositivoRepository.updateDispositivo(dispositivoActualizado) // Asume este método en el repo
+                dispositivoRepository.updateDispositivo(dispositivoActualizado)
                 // El StateFlow 'dispositivos' se actualizará automáticamente si el repo emite el cambio.
 
                 // Si el dispositivo editado es el que está seleccionado, actualiza también _dispositivoSeleccionado
@@ -387,6 +383,10 @@ class MapsViewModel @Inject constructor(
         super.onCleared()
         detenerActualizacionesDeUbicacionUsuario()
     }
+}
 
-
+enum class ModoEdicionPoligono {
+    NINGUNO,    // No se está creando ni editando
+    CREANDO,    // Creando un nuevo polígono
+    EDITANDO    // Editando un polígono existente (esta parte es más compleja y puede requerir más estado)
 }

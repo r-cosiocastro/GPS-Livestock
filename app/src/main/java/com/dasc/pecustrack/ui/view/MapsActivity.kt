@@ -19,6 +19,7 @@ import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -26,7 +27,8 @@ import com.dasc.pecustrack.R
 import com.dasc.pecustrack.data.model.Dispositivo
 import com.dasc.pecustrack.data.model.Poligono
 import com.dasc.pecustrack.databinding.ActivityMapsBinding
-import com.dasc.pecustrack.services.BluetoothService
+import com.dasc.pecustrack.bluetooth.BluetoothService
+import com.dasc.pecustrack.bluetooth.BluetoothStateManager
 import com.dasc.pecustrack.ui.viewmodel.MapsViewModel
 import com.dasc.pecustrack.ui.viewmodel.ModoEdicionPoligono
 import com.dasc.pecustrack.utils.LoadingDialog
@@ -45,9 +47,13 @@ import com.google.android.gms.maps.model.PolygonOptions
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedCallback {
+
+    @Inject
+    lateinit var bluetoothStateManager: BluetoothStateManager
 
     private lateinit var binding: ActivityMapsBinding
     private lateinit var googleMap: GoogleMap
@@ -74,62 +80,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
 
     private val marcadoresVerticesActuales = mutableListOf<Marker>()
 
-
     var isExpanded = false
 
-    private val bluetoothServiceReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            currentToast?.cancel()
-            when (intent?.action) {
-                BluetoothService.ACTION_RECONNECT_ATTEMPTING -> {
-                    val deviceName = intent.getStringExtra(BluetoothService.EXTRA_DEVICE_NAME) ?: "dispositivo guardado"
-                    currentToast = Toast.makeText(applicationContext, "Reconectando a $deviceName...", Toast.LENGTH_SHORT)
-                    currentToast?.show()
-                    binding.textEstadoBluetooth.text = "Reconectando a $deviceName..."
-                }
-                BluetoothService.ACTION_CONNECTION_SUCCESSFUL -> {
-                    val deviceName = intent.getStringExtra(BluetoothService.EXTRA_DEVICE_NAME) ?: "Dispositivo"
-                    Log.d("MapsActivity", "Conexión exitosa a Bluetooth a $deviceName")
-                    currentToast = Toast.makeText(applicationContext, "Conectado a $deviceName", Toast.LENGTH_SHORT)
-                    currentToast?.show()
-                    binding.textEstadoBluetooth.text = "Conectado por bluetooth a $deviceName"
-                }
-                BluetoothService.ACTION_CONNECTION_FAILED -> {
-                    val deviceName = intent.getStringExtra(BluetoothService.EXTRA_DEVICE_NAME)
-                    val errorMsg = intent.getStringExtra(BluetoothService.EXTRA_ERROR_MESSAGE) // Asumiendo que envías esto
-                    val message = if (deviceName != null) {
-                        "Conexión a $deviceName fallida." + (if(errorMsg != null) " ($errorMsg)" else "")
-                    } else {
-                        "Conexión a Bluetooth fallida." + (if(errorMsg != null) " ($errorMsg)" else "")
-                    }
-                    currentToast = Toast.makeText(applicationContext, message, Toast.LENGTH_LONG)
-                    currentToast?.show()
-                    binding.textEstadoBluetooth.text = "Desconectado"
-                }
-                BluetoothService.ACTION_DEVICE_DISCONNECTED -> {
-                    val deviceName = intent.getStringExtra(BluetoothService.EXTRA_DEVICE_NAME) ?: "Dispositivo"
-                    currentToast = Toast.makeText(applicationContext, "$deviceName desconectado", Toast.LENGTH_SHORT)
-                    currentToast?.show()
-                    binding.textEstadoBluetooth.text = "Desconectado"
-                }
-            }
-        }
-    }
-
-    override fun onStart() {
-        super.onStart()
-        val filter = IntentFilter().apply {
-            addAction(BluetoothService.ACTION_RECONNECT_ATTEMPTING)
-            addAction(BluetoothService.ACTION_CONNECTION_SUCCESSFUL)
-            addAction(BluetoothService.ACTION_CONNECTION_FAILED)
-            addAction(BluetoothService.ACTION_DEVICE_DISCONNECTED)
-        }
-        LocalBroadcastManager.getInstance(this).registerReceiver(bluetoothServiceReceiver, filter)
-    }
 
     override fun onStop() {
         super.onStop()
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(bluetoothServiceReceiver)
         currentToast?.cancel()
     }
 
@@ -144,7 +99,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
 
         Intent(this, BluetoothService::class.java).also { serviceIntent ->
             startService(serviceIntent) // Asegura que el servicio se inicie y pueda vivir más allá de la Activity
-            // bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE) // Si necesitas interacción directa
         }
 
         binding.fabBluetooth.setOnClickListener {
@@ -399,6 +353,54 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoa
         binding.fabCancelar.setOnClickListener {
             viewModel.cancelarCreacionEdicionPoligono()
         }
+    }
+
+    private fun setupBluetoothObservers() {
+        bluetoothStateManager.reconnectAttempting.observe(this, Observer { eventInfo ->
+            currentToast?.cancel()
+            val deviceName = eventInfo.deviceName ?: "dispositivo guardado"
+            currentToast = Toast.makeText(applicationContext, "Reconectando a $deviceName...", Toast.LENGTH_SHORT)
+            currentToast?.show()
+            binding.textEstadoBluetooth.text = "Reconectando a $deviceName..."
+        })
+
+        bluetoothStateManager.connectionSuccessful.observe(this, Observer { eventInfo ->
+            currentToast?.cancel()
+            val deviceName = eventInfo.deviceName ?: "Dispositivo"
+            Log.d("MapsActivity", "Conexión exitosa a Bluetooth a $deviceName")
+            currentToast = Toast.makeText(applicationContext, "Conectado a $deviceName", Toast.LENGTH_SHORT)
+            currentToast?.show()
+            binding.textEstadoBluetooth.text = "Conectado por bluetooth a $deviceName"
+        })
+
+        bluetoothStateManager.connectionFailed.observe(this, Observer { eventInfo ->
+            currentToast?.cancel()
+            val deviceName = eventInfo.deviceName
+            val errorMsg = eventInfo.errorMessage
+            val message = if (deviceName != null) {
+                "Conexión a $deviceName fallida." + (if (errorMsg != null) " ($errorMsg)" else "")
+            } else {
+                "Conexión a Bluetooth fallida." + (if (errorMsg != null) " ($errorMsg)" else "")
+            }
+            currentToast = Toast.makeText(applicationContext, message, Toast.LENGTH_LONG)
+            currentToast?.show()
+            binding.textEstadoBluetooth.text = "Desconectado"
+        })
+
+        bluetoothStateManager.deviceDisconnected.observe(this, Observer { eventInfo ->
+            currentToast?.cancel()
+            val deviceName = eventInfo.deviceName ?: "Dispositivo"
+            currentToast = Toast.makeText(applicationContext, "$deviceName desconectado", Toast.LENGTH_SHORT)
+            currentToast?.show()
+            binding.textEstadoBluetooth.text = "Desconectado"
+        })
+
+        // Si MapsActivity también necesita el objeto BluetoothDevice completo:
+        // bluetoothStateManager.deviceConnectedInfo.observe(this, Observer { eventInfo ->
+        //     val device = eventInfo.device
+        //     val displayName = eventInfo.deviceName
+        //     // Haz lo que necesites con esta información
+        // })
     }
 
     override fun onMapLoaded() {

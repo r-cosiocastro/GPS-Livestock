@@ -5,11 +5,34 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <!-- Para Android 11 (API 30) e inferiores: Escaneo y conexión básica -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <!-- ACCESS_FINE_LOCATION es necesario para el escaneo BLE en Android 6.0 (API 23) a Android 11 (API 30) -->
+    <!-- Puedes usar "neverForLocation" en Android 12+ si no necesitas la ubicación física del dispositivo -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- Para Android 12 (API 31) y superiores -->
+    <!-- android:maxSdkVersion="30" en los permisos antiguos indica que solo se aplican hasta API 30 -->
+    <!-- Esta es una forma de decirle al sistema que para API 31+ use los nuevos permisos -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30"/>
+
+
+    <!-- Nuevos permisos para Android 12 (API 31) y superiores -->
+    <!-- BLUETOOTH_SCAN es necesario para descubrir dispositivos -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <!-- BLUETOOTH_CONNECT es necesario para conectar a dispositivos ya emparejados y para obtener el nombre -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- BLUETOOTH_ADVERTISE es necesario si tu app va a actuar como periférico BLE (no parece ser tu caso aquí) -->
+    <!-- <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" /> -->
+
+    <!-- Si tu app no deriva ubicación física de los resultados del escaneo Bluetooth,
+         puedes declarar que no necesitas acceso a la ubicación para el escaneo en Android 12+ -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -29,7 +52,7 @@
         tools:targetApi="31"
         tools:ignore="GoogleAppIndexingWarning">
 
-        <service android:name=".services.BluetoothService"
+        <service android:name=".bluetooth.BluetoothService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice">
             <intent-filter>
