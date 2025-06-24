@@ -3,8 +3,8 @@
 
     <!-- Descripciones y títulos -->
     <string name="regresar">Regresar</string>
-    <string name="selecciona_dispositivo">Selecciona un dispositivo</string>
-    <string name="info_dispositivos">Información de los dispositivos</string>
+    <string name="selecciona_dispositivo">Selecciona un rastreador</string>
+    <string name="info_dispositivos">Información de los rastreadores</string>
 
     <!-- Botones principales -->
     <string name="agregar_area">Agregar área</string>
@@ -18,9 +18,9 @@
     <string name="finalizar_edicion">Finalizar edición</string>
 
     <!-- Información de dispositivos -->
-    <string name="dispositivos_total">Número total de dispositivos: %1$d</string>
-    <string name="dispositivos_activos">Dispositivos activos: %1$d</string>
-    <string name="dispositivos_fuera_rango">Dispositivos fuera del área de pastoreo: %1$d</string>
+    <string name="dispositivos_total">Número total de rastreadores: %1$d</string>
+    <string name="dispositivos_activos">Rastreadores activos: %1$d</string>
+    <string name="dispositivos_fuera_rango">Rastreadores fuera del área de pastoreo: %1$d</string>
 
 
     <string name="title_activity_maps">MapsActivity</string>

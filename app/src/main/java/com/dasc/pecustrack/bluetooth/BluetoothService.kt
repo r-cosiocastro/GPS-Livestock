@@ -354,6 +354,11 @@ class BluetoothService : Service() {
         }
     }
 
+    private fun isServiceConnectedToDevice(): Boolean {
+        // Implementa una lógica para saber si ya hay una conexión GATT activa y válida
+        return bluetoothGatt != null && connectedBleDevices.isNotEmpty() // Simplificado
+    }
+
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     override fun onCreate() {
         super.onCreate()
@@ -370,6 +375,43 @@ class BluetoothService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
         Log.d("BluetoothService_LIFECYCLE", "onStartCommand, Action: $action")
+
+        if (intent?.action == null && !isServiceConnectedToDevice()) { // Si el servicio se inicia sin acción y no hay conexión activa
+            val sharedPrefs = getSharedPreferences(AppPreferences.PREFS_NAME, Context.MODE_PRIVATE)
+            val lastDeviceAddress =
+                sharedPrefs.getString(AppPreferences.KEY_LAST_CONNECTED_BLE_DEVICE_ADDRESS, null)
+
+
+            if (lastDeviceAddress != null) {
+                var nameForInitialToast =
+                    sharedPrefs.getString(AppPreferences.KEY_LAST_CONNECTED_BLE_DEVICE_NAME, null)
+                if (nameForInitialToast == null) { // Si no hay nombre guardado, intenta obtenerlo del sistema (puede ser null)
+                    if (ActivityCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.BLUETOOTH_CONNECT
+                        ) == PackageManager.PERMISSION_GRANTED
+                    ) {
+                        try {
+                            val device = bluetoothAdapter.getRemoteDevice(lastDeviceAddress)
+                            nameForInitialToast =
+                                device.name ?: lastDeviceAddress // Fallback a la MAC
+                        } catch (e: IllegalArgumentException) {
+                            nameForInitialToast = lastDeviceAddress // Fallback a la MAC
+                        }
+                    } else {
+                        nameForInitialToast =
+                            lastDeviceAddress // Fallback a la MAC si no hay permiso
+                    }
+                }
+
+                isAttemptingAutoReconnect = true
+                lastAttemptedDeviceAddressForAutoReconnect = lastDeviceAddress
+                if (nameForInitialToast != null) {
+                    sendReconnectAttemptingBroadcast(nameForInitialToast)
+                }
+                attemptAutoReconnectToDevice(lastDeviceAddress) // autoConnect = true o false según tu elección
+            }
+        }
 
         if (!bluetoothAdapter.isEnabled) {
             Log.w("BluetoothService_CMD", "Bluetooth no está habilitado. Ignorando comando $action.")
@@ -562,6 +604,10 @@ class BluetoothService : Service() {
         // val intent = Intent(ACTION_CONNECTION_SUCCESSFUL).putExtra(EXTRA_DEVICE_NAME, displayName)
         // LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
         bluetoothStateManager.postConnectionSuccessful(displayName, gatt.device)
+    }
+
+    private fun sendReconnectAttemptingBroadcast(deviceName: String?) {
+        bluetoothStateManager.postAttemptingConnection(deviceName.toString())
     }
 
     private fun sendConnectionFailedBroadcast(deviceName: String?, errorMessage: String?) {
@@ -1197,7 +1243,7 @@ class BluetoothService : Service() {
         characteristic.writeType =
             BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT // O WRITE_TYPE_NO_RESPONSE
 
-        gatt?.writeCharacteristic(characteristic)?.let {
+        gatt.writeCharacteristic(characteristic)?.let {
             if (!it) {
                 Log.w(
                     "BluetoothService_BLE",

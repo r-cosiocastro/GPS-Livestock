@@ -71,11 +71,6 @@
             android:configChanges="keyboardHidden|orientation|screenSize">
 
             </activity>
-        <activity
-            android:name=".ui.view.MainActivity"
-            android:exported="true">
-
-        </activity>
     </application>
 
 </manifest>

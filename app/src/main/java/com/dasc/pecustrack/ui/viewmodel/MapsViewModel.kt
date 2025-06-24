@@ -4,9 +4,13 @@ import android.content.Context
 import android.location.Location
 import android.util.Log
 import android.widget.Toast
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dasc.pecustrack.bluetooth.BluetoothStateManager
+import com.dasc.pecustrack.bluetooth.ConnectionStatusInfo
 import com.dasc.pecustrack.data.model.Rastreador
 import com.dasc.pecustrack.data.model.Poligono
 import com.dasc.pecustrack.data.repository.RastreadorRepository
@@ -33,6 +37,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MapsViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
+    private val bluetoothStateManager: BluetoothStateManager,
     private val rastreadorRepository: RastreadorRepository,
     private val poligonoRepository: PoligonoRepository,
     private val poligonoEditorManager: PoligonoEditorManager,
@@ -40,6 +45,16 @@ class MapsViewModel @Inject constructor(
     private val verificarEstadoRastreadoresUseCase: VerificarEstadoRastreadoresUseCase,
     private val guardarPoligonoUseCase: com.dasc.pecustrack.domain.usecase.polygon.GuardarPoligonoUseCase
 ) : ViewModel() {
+
+    // --- Para Conexión ---
+    private val _connectionStatusText = MutableLiveData<String>("Desconectado")
+    val connectionStatusText: LiveData<String> = _connectionStatusText
+
+    private val _connectedDeviceName = MutableLiveData<String?>()
+    val connectedDeviceName: LiveData<String?> = _connectedDeviceName
+
+    private val _isConnected = MutableLiveData<Boolean>(false)
+    val isConnected: LiveData<Boolean> = _isConnected
 
     private val _userLocation = MutableStateFlow<Location?>(null)
     val userLocation: StateFlow<Location?> = _userLocation.asStateFlow()
@@ -74,6 +89,33 @@ class MapsViewModel @Inject constructor(
     private val _poligonoSeleccionadoId = MutableStateFlow<Int?>(null)
     val poligonoSeleccionadoId: StateFlow<Int?> = _poligonoSeleccionadoId.asStateFlow()
 
+    private val attemptingConnectionObserver = Observer<String> { deviceName ->
+        Log.d("MapsViewModel", "StateManager - Attempting Connection to: $deviceName")
+        _connectionStatusText.value = "Conectando al rastreador..."
+        _isConnected.value = false
+    }
+
+    private val connectionSuccessfulObserver = Observer<ConnectionStatusInfo> { statusInfo ->
+        Log.i("MapsViewModel", "StateManager - Connection Successful to: ${statusInfo.deviceDisplayName}")
+        _connectionStatusText.value = "Conectado al rastreador"
+        _connectedDeviceName.value = statusInfo.deviceDisplayName
+        _isConnected.value = true
+    }
+
+    private val connectionFailedObserver = Observer<ConnectionStatusInfo> { statusInfo ->
+        Log.e("MapsViewModel", "StateManager - Connection Failed to: ${statusInfo.deviceDisplayName}, Error: ${statusInfo.errorMessage}")
+        _connectionStatusText.value = "Falló conexión con con el rastreador: ${statusInfo.errorMessage}"
+        _connectedDeviceName.value = null
+        _isConnected.value = false
+    }
+
+    private val deviceDisconnectedObserver = Observer<ConnectionStatusInfo> { statusInfo ->
+        Log.i("MapsViewModel", "StateManager - Device Disconnected: ${statusInfo.deviceDisplayName}")
+        _connectionStatusText.value = "Desconectado del rastreador bluetooth"
+        _connectedDeviceName.value = null
+        _isConnected.value = false
+    }
+
     init {
         // Iniciar distanciaTexto con un valor por defecto
         distanciaTexto.value = "Calculando"
@@ -95,7 +137,14 @@ class MapsViewModel @Inject constructor(
             }
         }
         verificarEstadoDispositivos()
+
+        bluetoothStateManager.attemptingConnection.observeForever(attemptingConnectionObserver)
+        bluetoothStateManager.connectionSuccessful.observeForever(connectionSuccessfulObserver)
+        bluetoothStateManager.connectionFailed.observeForever(connectionFailedObserver)
+        bluetoothStateManager.deviceDisconnected.observeForever(deviceDisconnectedObserver)
     }
+
+
 
     fun obtenerIdPoligonoEnEdicion(): Int? {
         val id = poligonoEditorManager.idPoligonoEnEdicion.value // Accede al valor actual del StateFlow
@@ -380,8 +429,12 @@ class MapsViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        super.onCleared()
+        bluetoothStateManager.attemptingConnection.removeObserver(attemptingConnectionObserver)
+        bluetoothStateManager.connectionSuccessful.removeObserver(connectionSuccessfulObserver)
+        bluetoothStateManager.connectionFailed.removeObserver(connectionFailedObserver)
+        bluetoothStateManager.deviceDisconnected.removeObserver(deviceDisconnectedObserver)
         detenerActualizacionesDeUbicacionUsuario()
+        super.onCleared()
     }
 }
 

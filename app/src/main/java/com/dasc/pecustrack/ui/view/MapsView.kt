@@ -93,7 +93,7 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
         loadingDialog.showLoadingDialog("Cargando mapa", R.raw.cow)
 
         Intent(this, BluetoothService::class.java).also { serviceIntent ->
-            startService(serviceIntent) // Asegura que el servicio se inicie y pueda vivir más allá de la Activity
+            startService(serviceIntent)
         }
 
         binding.fabBluetooth.setOnClickListener {
@@ -149,17 +149,6 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
             }
         }
 
-
-
-        val not = NotificationHelper.createBasicNotification(
-            this,
-            NotificationHelper.BLUETOOTH_SERVICE_CHANNEL_ID,
-            "¡Se te salieron las vacas wey!",
-            "Córrele que te las van a hacer carnitas"
-        )
-
-        NotificationHelper.showNotification(this, NotificationHelper.BLUETOOTH_SERVICE_NOTIFICATION_ID, not)
-
         configurarObservadoresViewModel()
         configurarListenersUI()
 
@@ -193,6 +182,24 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
     }
 
     private fun configurarObservadoresViewModel() {
+
+        viewModel.isConnected.observe(this) { connected ->
+            if (connected) {
+                binding.connectedIcon.setImageResource(R.drawable.ic_bluetooth_connected_badge)
+            } else {
+                binding.connectedIcon.setImageResource(R.drawable.ic_bluetooth_disconnected_badge)
+            }
+        }
+
+        viewModel.connectionStatusText.observe(this) { status ->
+            if (status.isNotEmpty()) {
+                currentToast?.cancel() // Cancelar el toast anterior si existe
+                currentToast = Toast.makeText(this, status, Toast.LENGTH_SHORT)
+                currentToast?.show()
+
+                binding.textEstadoBluetooth.text = status
+            }
+        }
 
         viewModel.distanciaTexto.observe(this) { texto ->
             // binding.topText.text = texto
@@ -599,7 +606,7 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
                 binding.fabOpcionesEdicion.visibility = View.GONE
                 binding.fabEditar.visibility = View.VISIBLE
                 // También actualiza topText si es necesario
-                binding.topText.text = "Selecciona un dispositivo o un área para editar"
+                binding.topText.text = "Selecciona un rastreador o una área para editar"
             }
             ModoEdicionPoligono.CREANDO -> {
                 actualizarMarcadoresDeVerticesVisual(viewModel.puntosPoligonoActualParaDibujar.value, modo)
