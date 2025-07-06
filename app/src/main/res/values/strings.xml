@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Pecus Track</string>
+    <string name="app_name">GPS Livestock Tracker</string>
 
     <!-- Descripciones y títulos -->
     <string name="regresar">Regresar</string>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.PecusTrack" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
+    <style name="Theme.GpsLivestock" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
         <item name="colorPrimary">@color/md_theme_primary</item>
         <item name="colorOnPrimary">@color/md_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/md_theme_primaryContainer</item>
@@ -39,10 +39,10 @@
         <item name="android:windowAnimationStyle">@style/ExpressiveWindowAnimation</item>
     </style>
 
-    <style name="Theme.PecusTrack.SplashScreen" parent="Theme.SplashScreen">
+    <style name="Theme.GpsLivestock.SplashScreen" parent="Theme.SplashScreen">
         <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_round</item>
         <item name="windowSplashScreenBackground">@color/md_theme_background</item>
         <item name="windowSplashScreenAnimationDuration">1000</item>
-        <item name="postSplashScreenTheme">@style/Theme.PecusTrack</item>
+        <item name="postSplashScreenTheme">@style/Theme.GpsLivestock</item>
     </style>
 </resources>

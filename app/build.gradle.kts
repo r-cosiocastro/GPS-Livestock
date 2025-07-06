@@ -21,11 +21,11 @@ plugins {
 }
 
 android {
-    namespace = "com.dasc.pecustrack"
+    namespace = "com.rafaelcosio.gpslivestock"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.dasc.pecustrack"
+        applicationId = "com.rafaelcosio.gpslivestock"
         minSdk = 29
         targetSdk = 36
         versionCode = 1
