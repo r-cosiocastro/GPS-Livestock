@@ -19,10 +19,6 @@
             android:layout_height="match_parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-
-
-
-
         <!-- Top Card -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/top_card"
@@ -40,8 +36,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_margin="8dp"
-                >
+                android:layout_margin="8dp">
 
                 <TextView
                     android:id="@+id/top_text"
@@ -56,26 +51,40 @@
                     app:drawableTint="?attr/colorPrimary"
                     android:drawablePadding="8dp"/>
 
-            <com.google.android.material.divider.MaterialDivider
-                android:layout_width="1dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="8dp"/>
+                <com.google.android.material.divider.MaterialDivider
+                    android:layout_width="1dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"/>
 
-            <ImageView
-                android:id="@+id/connected_icon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:contentDescription="TODO"
-                android:src="@drawable/ic_bluetooth_disconnected_badge"
-                android:layout_gravity="center_vertical"/>
-
+                <ImageView
+                    android:id="@+id/connected_icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:contentDescription="TODO"
+                    android:src="@drawable/ic_bluetooth_disconnected_badge"
+                    android:layout_gravity="center_vertical"/>
             </LinearLayout>
-
         </com.google.android.material.card.MaterialCardView>
 
-
+        <!-- NUEVO TextView para información del usuario -->
+        <TextView
+            android:id="@+id/tvUserInfo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="8dp"
+            android:padding="8dp"
+            android:background="#80000000" 
+            android:textColor="@android:color/white"
+            android:textSize="14sp"
+            android:gravity="center_horizontal"
+            app:layout_constraintTop_toBottomOf="@id/top_card"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            tools:text="Bienvenido Usuario Ganadero (Rancho: El Sol)" />
 
         <!-- FABs -->
         <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
@@ -89,7 +98,7 @@
             app:icon="@drawable/ic_add"
             app:iconTint="?attr/colorOnSecondaryContainer"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/top_card" />
+            app:layout_constraintTop_toBottomOf="@id/tvUserInfo" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btnCentrar"
@@ -99,7 +108,7 @@
             android:contentDescription="@string/centrar_mapa"
             android:src="@drawable/ic_zoom"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/top_card"/>
+            app:layout_constraintTop_toBottomOf="@id/tvUserInfo"/>
 
         <LinearLayout
             android:id="@+id/fabOpcionesEdicion"
@@ -152,12 +161,7 @@
                 app:backgroundTint="?attr/colorPrimary"
                 app:tint="?attr/colorOnPrimary" />
         </LinearLayout>
-
-
-
     </androidx.constraintlayout.widget.ConstraintLayout>
-
-
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabBluetooth"
@@ -207,7 +211,6 @@
                     style="@style/TextAppearance.Material3.TitleLarge" />
 
                 <!-- Contenido colapsable -->
-
                 <LinearLayout
                     android:id="@+id/expanded_content"
                     android:layout_width="match_parent"
@@ -247,11 +250,8 @@
                         android:layout_height="wrap_content"
                         android:text="@string/estado_bluetooth"
                         android:paddingTop="8dp">
-
                     </TextView>
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
-
-
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

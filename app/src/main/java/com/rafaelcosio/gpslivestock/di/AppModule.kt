@@ -1,10 +1,11 @@
 package com.rafaelcosio.gpslivestock.di
 
 import android.content.Context
-import androidx.room.Room
+// No es necesario Room aquí si AppDatabase.getDatabase lo maneja
 import com.rafaelcosio.gpslivestock.data.database.AppDatabase
 import com.rafaelcosio.gpslivestock.data.database.dao.RastreadorDao
 import com.rafaelcosio.gpslivestock.data.database.dao.PoligonoDao
+import com.rafaelcosio.gpslivestock.data.database.dao.UserDao
 import com.rafaelcosio.gpslivestock.utils.NotificationHelper
 import dagger.Module
 import dagger.Provides
@@ -20,12 +21,9 @@ object AppModule {
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext appContext: Context): AppDatabase {
-        return Room.databaseBuilder(
-            appContext,
-            AppDatabase::class.java,
-            "pecus_track_db"
-        ).fallbackToDestructiveMigration(false)
-            .build()
+        // Llama al método estático en AppDatabase para obtener la instancia.
+        // Este método ya contendrá la lógica de .fallbackToDestructiveMigration()
+        return AppDatabase.getDatabase(appContext)
     }
 
     @Provides
@@ -39,11 +37,16 @@ object AppModule {
     }
 
     @Provides
+    fun provideUserDao(appDatabase: AppDatabase): UserDao {
+        return appDatabase.userDao()
+    }
+
+    @Provides
     @Singleton
     fun provideNotificationHelper(
         @ApplicationContext context: Context
     ): NotificationHelper {
+        // Asumiendo que NotificationHelper es un object o tiene un constructor sin args accesible
         return NotificationHelper
     }
-
 }

@@ -1,6 +1,24 @@
 <resources>
     <string name="app_name">GPS Livestock Tracker</string>
 
+    <!-- Login and Authentication -->
+    <string name="welcome_title">Bienvenido</string>
+    <string name="welcome_subtitle">Inicia sesión para continuar</string>
+    <string name="email_hint">Correo electrónico</string>
+    <string name="email_helper">Ingresa tu correo electrónico</string>
+    <string name="password_hint">Contraseña</string>
+    <string name="confirm_password_hint">Confirmar contraseña</string>
+    <string name="display_name_hint">Nombre para mostrar</string>
+    <string name="display_name_helper">Opcional - Se mostrará en la app</string>
+    <string name="user_type_label">Tipo de usuario</string>
+    <string name="ranch_name_hint">Nombre del rancho</string>
+    <string name="login_button">Iniciar Sesión</string>
+    <string name="register_button">Registrarse</string>
+    <string name="no_account_register">¿No tienes cuenta? Regístrate</string>
+    <string name="have_account_login">¿Ya tienes cuenta? Inicia sesión</string>
+    <string name="create_account_title">Crear Cuenta</string>
+    <string name="register_subtitle">Completa tus datos para registrarte</string>
+
     <!-- Descripciones y títulos -->
     <string name="regresar">Regresar</string>
     <string name="selecciona_dispositivo">Selecciona un rastreador</string>
@@ -27,6 +45,7 @@
     <string name="distancia">Distancia: %1$s</string>
     <string name="ultima_conexion">: %1$s</string>
 
+    <string name="selecciona_dispositivo_o_area">Selecciona dispositivo o área</string>
     <string name="estado_del_dispositivo"><b>Estado:</b> %1$s</string>
     <string name="tipo_de_animal">Tipo de animal: %1$s</string>
     <string name="fab_edit">Editar Área %1$s</string>
