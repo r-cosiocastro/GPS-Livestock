@@ -49,4 +49,10 @@ object AppModule {
         // Asumiendo que NotificationHelper es un object o tiene un constructor sin args accesible
         return NotificationHelper
     }
+
+    @Provides
+    @Singleton
+    fun provideFirebaseModule(): FirebaseModule {
+        return FirebaseModule
+    }
 }

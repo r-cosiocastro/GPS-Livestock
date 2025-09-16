@@ -1,11 +1,11 @@
 [versions]
-agp = "8.11.1"
+agp = "8.13.0"
 kotlin = "2.2.20"
 coreKtx = "1.16.0"
 room = "2.7.2"
 ksp = "com.google.devtools.ksp:2.0.21-1.0.28"
 lottie = "6.6.7"
-gson = "2.13.1"
+gson = "2.13.2"
 hilt = "2.51"
 hilt_navigation = "1.2.0"
 splash = "1.0.1"
@@ -20,12 +20,17 @@ activity = "1.11.0"
 constraintlayout = "2.2.1"
 playservices-maps = "19.2.0"
 playservices-location = "21.3.0"
-maps-utils = "3.14.0"
+maps-utils = "3.18.0"
 googleAndroidLibrariesMapsplatformSecretsGradlePlugin = "2.0.1"
 bluetooth = "1.0.0-alpha02"
+firebase-bom = "34.2.0"
+google-services = "4.4.3"
+roomKtx = "2.8.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+firebase-appcheck-ktx = { module = "com.google.firebase:firebase-appcheck-ktx" }
+firebase-appcheck-playintegrity = { module = "com.google.firebase:firebase-appcheck-playintegrity" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
@@ -50,9 +55,14 @@ lottie = { group = "com.airbnb.android", name = "lottie", version.ref = "lottie"
 splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splash" }
 coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
 androidx-bluetooth = { group = "androidx.bluetooth", name = "bluetooth", version.ref = "bluetooth" }
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebase-bom" }
+firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
+firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "roomKtx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 google-android-libraries-mapsplatform-secrets-gradle-plugin = { id = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin", version.ref = "googleAndroidLibrariesMapsplatformSecretsGradlePlugin" }
-
+google-services = { id = "com.google.gms.google-services", version.ref = "google-services" }

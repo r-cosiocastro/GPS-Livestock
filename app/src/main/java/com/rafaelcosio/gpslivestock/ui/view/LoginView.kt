@@ -9,12 +9,12 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.rafaelcosio.gpslivestock.data.model.FirebaseUserProfile
 import com.rafaelcosio.gpslivestock.databinding.ActivityLoginBinding
 import com.rafaelcosio.gpslivestock.data.model.UserType
+import com.rafaelcosio.gpslivestock.ui.viewmodel.AuthViewModel
 import com.rafaelcosio.gpslivestock.ui.viewmodel.AuthUiState
-import com.rafaelcosio.gpslivestock.ui.viewmodel.UnifiedAuthViewModel
 import com.rafaelcosio.gpslivestock.utils.AppPreferences
-import com.rafaelcosio.gpslivestock.data.model.User
 import com.rafaelcosio.gpslivestock.utils.toSpanish
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 class LoginView : AppCompatActivity() {
 
     private lateinit var binding: ActivityLoginBinding
-    private val authViewModel: UnifiedAuthViewModel by viewModels()
+    private val authViewModel: AuthViewModel by viewModels()
 
     private var isRegisterMode = false
     private val selectableUserTypes: List<UserType> = UserType.entries.filter { it != UserType.ADMINISTRATOR }
@@ -36,6 +36,7 @@ class LoginView : AppCompatActivity() {
         setupSpinner()
         setupListeners()
         observeUiState()
+        observeCurrentUser()
         updateUI()
     }
 
@@ -62,54 +63,129 @@ class LoginView : AppCompatActivity() {
     }
 
     private fun setupListeners() {
+        // Usar btnPrimary que es el ID actual en el XML
         binding.btnPrimary.setOnClickListener {
             if (isRegisterMode) {
-                performRegister()
+                handleRegister()
             } else {
-                performLogin()
+                handleLogin()
             }
         }
 
         binding.btnToggleMode.setOnClickListener {
-            toggleMode()
+            isRegisterMode = !isRegisterMode
+            updateUI()
+            authViewModel.clearMessages()
+            clearFields()
         }
     }
 
-    private fun performLogin() {
+    private fun handleLogin() {
         val email = binding.etEmail.text.toString().trim()
         val password = binding.etPassword.text.toString()
-        authViewModel.login(email, password)
+
+        if (validateLoginFields(email, password)) {
+            authViewModel.signIn(email, password)
+        }
     }
 
-    private fun performRegister() {
+    private fun handleRegister() {
         val email = binding.etEmail.text.toString().trim()
         val password = binding.etPassword.text.toString()
         val confirmPassword = binding.etConfirmPassword.text.toString()
         val displayName = binding.etDisplayName.text.toString().trim()
+        val userType = selectableUserTypes.getOrNull(binding.spinnerUserType.selectedItemPosition) ?: UserType.REGULAR_USER
+        val ranchName = binding.etRanchName.text.toString().trim().ifBlank { null }
 
-        val selectedItemPosition = binding.spinnerUserType.selectedItemPosition
-        if (selectedItemPosition >= 0 && selectedItemPosition < selectableUserTypes.size) {
-            val selectedUserType = selectableUserTypes[selectedItemPosition]
-            val ranchName = binding.etRanchName.text.toString().trim()
-
-            authViewModel.register(
-                email,
-                password,
-                confirmPassword,
-                displayName.ifEmpty { null },
-                selectedUserType,
-                ranchName.ifEmpty { null }
-            )
-        } else {
-            Toast.makeText(this, "Por favor, selecciona un tipo de usuario válido.", Toast.LENGTH_SHORT).show()
+        if (validateRegisterFields(email, password, confirmPassword, displayName)) {
+            authViewModel.signUp(email, password, confirmPassword, displayName, userType, ranchName)
         }
     }
 
-    private fun toggleMode() {
-        isRegisterMode = !isRegisterMode
-        updateUI()
-        clearFields()
-        authViewModel.resetState()
+    private fun validateLoginFields(email: String, password: String): Boolean {
+        var isValid = true
+
+        if (email.isEmpty()) {
+            showError("El email es requerido")
+            isValid = false
+        }
+        if (password.isEmpty()) {
+            showError("La contraseña es requerida")
+            isValid = false
+        }
+
+        return isValid
+    }
+
+    private fun validateRegisterFields(email: String, password: String, confirmPassword: String, displayName: String): Boolean {
+        var isValid = true
+
+        if (email.isEmpty()) {
+            showError("El email es requerido")
+            isValid = false
+        } else if (password.isEmpty()) {
+            showError("La contraseña es requerida")
+            isValid = false
+        } else if (password.length < 6) {
+            showError("La contraseña debe tener al menos 6 caracteres")
+            isValid = false
+        } else if (confirmPassword.isEmpty()) {
+            showError("Confirma tu contraseña")
+            isValid = false
+        } else if (password != confirmPassword) {
+            showError("Las contraseñas no coinciden")
+            isValid = false
+        } else if (displayName.isEmpty()) {
+            showError("El nombre es requerido")
+            isValid = false
+        }
+
+        return isValid
+    }
+
+    private fun observeUiState() {
+        lifecycleScope.launch {
+            authViewModel.uiState.collect { state ->
+                handleUiState(state)
+            }
+        }
+    }
+
+    private fun observeCurrentUser() {
+        lifecycleScope.launch {
+            authViewModel.currentUser.collect { user ->
+                if (user != null) {
+                    saveUserSession(user)
+                    navigateToMainScreen()
+                }
+            }
+        }
+    }
+
+    private fun handleUiState(state: AuthUiState) {
+        binding.progressBar.visibility = if (state.isLoading) View.VISIBLE else View.GONE
+        binding.btnPrimary.isEnabled = !state.isLoading
+        binding.btnToggleMode.isEnabled = !state.isLoading
+
+        if (state.errorMessage != null) {
+            showError(state.errorMessage)
+        }
+
+        if (state.successMessage != null) {
+            Toast.makeText(this, state.successMessage, Toast.LENGTH_LONG).show()
+        }
+
+        if (state.isSignInSuccess) {
+            navigateToMainScreen()
+        }
+
+        if (state.isSignUpSuccess) {
+            isRegisterMode = false
+            updateUI()
+            clearFields()
+            authViewModel.resetSuccessStates()
+            Toast.makeText(this, "Cuenta creada exitosamente. Ahora puedes iniciar sesión.", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun updateUI() {
@@ -121,8 +197,7 @@ class LoginView : AppCompatActivity() {
 
             binding.tilConfirmPassword.visibility = View.VISIBLE
             binding.tilDisplayName.visibility = View.VISIBLE
-            binding.tvUserTypeLabel.visibility = View.VISIBLE
-            binding.spinnerUserType.visibility = View.VISIBLE
+            binding.userTypeSection.visibility = View.VISIBLE
 
             // Verificar si mostrar campo rancho
             val selectedPosition = binding.spinnerUserType.selectedItemPosition
@@ -142,10 +217,11 @@ class LoginView : AppCompatActivity() {
 
             binding.tilConfirmPassword.visibility = View.GONE
             binding.tilDisplayName.visibility = View.GONE
-            binding.tvUserTypeLabel.visibility = View.GONE
-            binding.spinnerUserType.visibility = View.GONE
+            binding.userTypeSection.visibility = View.GONE
             binding.tilRanchName.visibility = View.GONE
         }
+
+        hideError()
     }
 
     private fun clearFields() {
@@ -156,60 +232,22 @@ class LoginView : AppCompatActivity() {
         binding.etRanchName.text?.clear()
     }
 
-    private fun observeUiState() {
-        lifecycleScope.launch {
-            authViewModel.authUiState.collect { state ->
-                when (state) {
-                    is AuthUiState.Idle -> {
-                        binding.progressBar.visibility = View.GONE
-                        binding.errorCard.visibility = View.GONE
-                        binding.btnPrimary.isEnabled = true
-                    }
-                    is AuthUiState.Loading -> {
-                        binding.progressBar.visibility = View.VISIBLE
-                        binding.errorCard.visibility = View.GONE
-                        binding.btnPrimary.isEnabled = false
-                    }
-                    is AuthUiState.LoginSuccess -> {
-                        binding.progressBar.visibility = View.GONE
-                        binding.btnPrimary.isEnabled = true
-                        Toast.makeText(
-                            this@LoginView,
-                            "Login exitoso! Usuario: ${state.user.displayName ?: state.user.email}, Tipo: ${state.user.userType}",
-                            Toast.LENGTH_LONG
-                        ).show()
-
-                        saveUserSession(state.user)
-                        navigateToMainScreen()
-                    }
-                    is AuthUiState.RegisterSuccess -> {
-                        binding.progressBar.visibility = View.GONE
-                        binding.btnPrimary.isEnabled = true
-                        Toast.makeText(this@LoginView, "Registro exitoso. Por favor, inicia sesión.", Toast.LENGTH_LONG).show()
-
-                        // Cambiar automáticamente a modo login después del registro exitoso
-                        isRegisterMode = false
-                        updateUI()
-                        clearFields()
-                    }
-                    is AuthUiState.Error -> {
-                        binding.progressBar.visibility = View.GONE
-                        binding.tvError.text = state.message
-                        binding.errorCard.visibility = View.VISIBLE
-                        binding.btnPrimary.isEnabled = true
-                        Toast.makeText(this@LoginView, state.message, Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        }
+    private fun showError(message: String) {
+        binding.tvError.text = message
+        binding.errorCard.visibility = View.VISIBLE
     }
 
-    private fun saveUserSession(user: User) {
-        AppPreferences.saveUserSession(this, user)
+    private fun hideError() {
+        binding.errorCard.visibility = View.GONE
+    }
+
+    private fun saveUserSession(user: FirebaseUserProfile) {
+        AppPreferences.saveUserSessionFirebase(this, user)
     }
 
     private fun navigateToMainScreen() {
-        val intent = Intent(this, MapsView::class.java) 
+        // Navegar a la pantalla principal después del login exitoso
+        val intent = Intent(this, MapsView::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
         finish()

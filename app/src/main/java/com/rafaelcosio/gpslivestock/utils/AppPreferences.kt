@@ -2,6 +2,7 @@ package com.rafaelcosio.gpslivestock.utils
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.rafaelcosio.gpslivestock.data.model.FirebaseUserProfile
 import com.rafaelcosio.gpslivestock.data.model.User
 import com.rafaelcosio.gpslivestock.data.model.UserType
 
@@ -27,6 +28,17 @@ object AppPreferences {
     fun saveUserSession(context: Context, user: User) {
         val editor = getPreferences(context).edit()
         editor.putInt(KEY_USER_ID, user.id)
+        editor.putString(KEY_USER_EMAIL, user.email)
+        editor.putString(KEY_USER_TYPE, user.userType.name) // Guardamos el nombre del enum
+        user.displayName?.let { editor.putString(KEY_USER_DISPLAY_NAME, it) }
+        user.ranchName?.let { editor.putString(KEY_USER_RANCH_NAME, it) }
+        editor.putBoolean(KEY_IS_LOGGED_IN, true)
+        editor.apply()
+    }
+
+    fun saveUserSessionFirebase(context: Context, user: FirebaseUserProfile) {
+        val editor = getPreferences(context).edit()
+        editor.putString(KEY_USER_ID, user.uid)
         editor.putString(KEY_USER_EMAIL, user.email)
         editor.putString(KEY_USER_TYPE, user.userType.name) // Guardamos el nombre del enum
         user.displayName?.let { editor.putString(KEY_USER_DISPLAY_NAME, it) }

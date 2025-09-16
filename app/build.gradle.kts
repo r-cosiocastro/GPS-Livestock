@@ -18,6 +18,7 @@ plugins {
     id("kotlin-parcelize")
     id("com.google.devtools.ksp")
     id("dagger.hilt.android.plugin")
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -75,6 +76,7 @@ dependencies {
     implementation(libs.hilt.android)
     implementation(libs.androidx.bluetooth)
     implementation(libs.androidx.localbroadcastmanager)
+    implementation(libs.androidx.room.ktx)
     ksp(libs.hilt.compiler)
     ksp(libs.room.ksp)
     implementation(libs.lifecycle.viewmodel.ktx)
@@ -82,6 +84,13 @@ dependencies {
     implementation(libs.lottie)
     implementation(libs.splashscreen)
     testImplementation(libs.junit)
+
+    // Firebase dependencies
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+    implementation(libs.firebase.analytics)
+
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }

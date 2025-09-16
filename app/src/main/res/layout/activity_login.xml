@@ -186,8 +186,8 @@
                         android:text="@string/user_type_label"
                         android:textAppearance="?attr/textAppearanceBodyMedium"
                         android:textColor="?attr/colorOnSurfaceVariant"
-                        android:drawableStart="@drawable/ic_group_24"
-                        android:drawableTint="?attr/colorPrimary"
+                        app:drawableStartCompat="@drawable/ic_group_24"
+                        app:drawableTint="?attr/colorPrimary"
                         android:drawablePadding="8dp"
                         android:gravity="center_vertical" />
 

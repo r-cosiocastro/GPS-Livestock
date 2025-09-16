@@ -22,10 +22,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.rafaelcosio.gpslivestock" />
+                  <option name="mobileSdkAppId" value="1:463261493397:android:02db78a1754cbfeb66939c" />
+                  <option name="projectId" value="pecustrack" />
+                  <option name="projectNumber" value="463261493397" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />
