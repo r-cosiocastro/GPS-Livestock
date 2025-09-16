@@ -11,6 +11,7 @@
 /.idea/copilot.data.migration.agent.xml
 /.idea/copilot.data.migration.edit.xml
 .DS_Store
+google-services.json
 /build
 /captures
 .externalNativeBuild
