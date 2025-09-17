@@ -1,257 +1,267 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/coordinatorLayout"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="false"
+    tools:context=".ui.view.MapsView">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        xmlns:tools="http://schemas.android.com/tools"
-        android:id="@+id/root_container"
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/map"
+        android:name="com.google.android.gms.maps.SupportMapFragment"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:id="@+id/coordinatorLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        tools:context=".ui.view.MapsView">
+        android:fitsSystemWindows="true">
 
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/map"
-            android:name="com.google.android.gms.maps.SupportMapFragment"
+        <com.google.android.material.appbar.AppBarLayout
+            android:id="@+id/app_bar_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@android:color/transparent"
+            android:fitsSystemWindows="true">
+
+            <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/topAppBar"
+                android:background="?attr/colorSurfaceContainerHigh"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                app:layout_scrollFlags="scroll|enterAlways"
+                app:navigationIcon="@drawable/ic_signout_24"
+                app:subtitle="Explora el mapa"
+                app:title="Mapa" />
+        </com.google.android.material.appbar.AppBarLayout>
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/root_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <!-- Top Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/top_card"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="8dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
+            <TextView
+                android:visibility="gone"
+                android:id="@+id/tvUserInfo"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginEnd="16dp"
+                android:background="#CC000000"
+                android:gravity="center_horizontal"
+                android:padding="8dp"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:text="Bienvenido Usuario Ganadero (Rancho: El Sol)" />
 
-            <LinearLayout
-                android:id="@+id/top_bar"
+            <com.google.android.material.banner.MaterialBanner
+                android:id="@+id/instructionBanner"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_margin="8dp">
-
-                <TextView
-                    android:id="@+id/top_text"
-                    android:layout_width="0dp"
-                    android:layout_weight="3"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_vertical"
-                    android:text="@string/selecciona_dispositivo"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    app:drawableStartCompat="@drawable/ic_info"
-                    app:drawableTint="?attr/colorPrimary"
-                    android:drawablePadding="8dp"/>
-
-                <com.google.android.material.divider.MaterialDivider
-                    android:layout_width="1dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginStart="8dp"
-                    android:layout_marginEnd="8dp"/>
-
-                <ImageView
-                    android:id="@+id/connected_icon"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp"
-                    android:contentDescription="TODO"
-                    android:src="@drawable/ic_bluetooth_disconnected_badge"
-                    android:layout_gravity="center_vertical"/>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- NUEVO TextView para información del usuario -->
-        <TextView
-            android:id="@+id/tvUserInfo"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            android:layout_marginTop="8dp"
-            android:padding="8dp"
-            android:background="#80000000" 
-            android:textColor="@android:color/white"
-            android:textSize="14sp"
-            android:gravity="center_horizontal"
-            app:layout_constraintTop_toBottomOf="@id/top_card"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            tools:text="Bienvenido Usuario Ganadero (Rancho: El Sol)" />
-
-        <!-- FABs -->
-        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-            android:id="@+id/fabEditar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            android:text="@string/agregar_area"
-            android:textColor="?attr/colorOnSecondaryContainer"
-            app:backgroundTint="?attr/colorSecondaryContainer"
-            app:icon="@drawable/ic_add"
-            app:iconTint="?attr/colorOnSecondaryContainer"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvUserInfo" />
-
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/btnCentrar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            android:contentDescription="@string/centrar_mapa"
-            android:src="@drawable/ic_zoom"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvUserInfo"/>
-
-        <LinearLayout
-            android:id="@+id/fabOpcionesEdicion"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            android:gravity="end"
-            android:orientation="vertical"
-            android:visibility="visible"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/fabEditar">
+                android:visibility="gone"
+                app:bannerBackgroundColor="?attr/colorSurfaceVariant"
+                app:primaryActionText="Entendido"
+                app:secondaryActionText="Más info"
+                app:layout_anchor="@id/app_bar_layout"
+                app:layout_anchorGravity="bottom" />
 
             <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-                android:id="@+id/fabCancelar"
+                android:id="@+id/fabEditar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:text="@string/cancelar"
-                android:textColor="?attr/colorOnError"
-                app:backgroundTint="?attr/colorError"
-                app:icon="@drawable/ic_cancel"
-                app:iconTint="?attr/colorOnError" />
+                android:layout_margin="16dp"
+                android:text="@string/agregar_area"
+                android:textColor="?attr/colorOnSecondaryContainer"
+                app:backgroundTint="?attr/colorSecondaryContainer"
+                app:icon="@drawable/ic_add"
+                app:iconTint="?attr/colorOnSecondaryContainer"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tvUserInfo" />
 
             <com.google.android.material.floatingactionbutton.FloatingActionButton
-                android:id="@+id/fabDeshacer"
+                android:id="@+id/btnCentrar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:contentDescription="@string/deshacer"
-                android:src="@drawable/ic_undo"
-                app:backgroundTint="?attr/colorTertiaryContainer"
-                app:tint="?attr/colorOnTertiaryContainer" />
+                android:layout_margin="16dp"
+                android:contentDescription="@string/centrar_mapa"
+                android:src="@drawable/ic_zoom"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tvUserInfo" />
 
-            <com.google.android.material.floatingactionbutton.FloatingActionButton
-                android:id="@+id/fabReiniciar"
+            <LinearLayout
+                android:id="@+id/fabOpcionesEdicion"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:contentDescription="@string/reiniciar"
-                android:src="@drawable/ic_delete"
-                app:backgroundTint="?attr/colorErrorContainer"
-                app:tint="?attr/colorOnErrorContainer" />
+                android:layout_margin="16dp"
+                android:gravity="end"
+                android:orientation="vertical"
+                android:visibility="visible"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/fabEditar">
 
-            <com.google.android.material.floatingactionbutton.FloatingActionButton
-                android:id="@+id/fabFinalizar"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:contentDescription="@string/finalizar_edicion"
-                android:src="@drawable/ic_check"
-                app:backgroundTint="?attr/colorPrimary"
-                app:tint="?attr/colorOnPrimary" />
-        </LinearLayout>
-    </androidx.constraintlayout.widget.ConstraintLayout>
+                <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+                    android:id="@+id/fabCancelar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:text="@string/cancelar"
+                    android:textColor="?attr/colorOnError"
+                    app:backgroundTint="?attr/colorError"
+                    app:icon="@drawable/ic_cancel"
+                    app:iconTint="?attr/colorOnError" />
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fabBluetooth"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:contentDescription="@string/dispositivos_bluetooth"
-        android:src="@drawable/ic_bluetooth_settings"
-        android:textColor="?attr/colorOnPrimaryContainer"
-        app:layout_anchor="@id/bottom_card_device_details"
-        app:layout_anchorGravity="top|end"
-        android:layout_marginEnd="8dp"
-        android:layout_marginBottom="56dp"
-        android:elevation="8dp" />
+                <com.google.android.material.floatingactionbutton.FloatingActionButton
+                    android:id="@+id/fabDeshacer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:contentDescription="@string/deshacer"
+                    android:src="@drawable/ic_undo"
+                    app:backgroundTint="?attr/colorPrimary"
+                    app:tint="?attr/colorOnPrimary"
+                     />
 
-        <!-- Bottom Card -->
+                <com.google.android.material.floatingactionbutton.FloatingActionButton
+                    android:id="@+id/fabReiniciar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:contentDescription="@string/reiniciar"
+                    android:src="@drawable/ic_delete"
+                    app:backgroundTint="?attr/colorErrorContainer"
+                    app:tint="?attr/colorOnErrorContainer" />
+
+                <com.google.android.material.floatingactionbutton.FloatingActionButton
+                    android:id="@+id/fabFinalizar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@string/finalizar_edicion"
+                    android:src="@drawable/ic_check"
+
+                    app:backgroundTint="?attr/colorTertiaryContainer"
+                    app:tint="?attr/colorOnTertiaryContainer"/>
+            </LinearLayout>
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/bottom_card_device_details"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardCornerRadius="16dp"
-            android:layout_margin="8dp"
-            android:background="@color/cardview_light_background"
-            app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
+            android:layout_margin="12dp"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="8dp"
+            app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
+            app:strokeWidth="2dp">
 
             <LinearLayout
                 android:id="@+id/bottom_panel"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:paddingStart="20dp"
+                android:paddingTop="16dp"
+                android:paddingEnd="20dp"
+                android:paddingBottom="20dp">
 
                 <ImageView
                     android:id="@+id/arrow_icon"
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:scaleX="3.0"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
                     android:layout_gravity="center"
                     android:layout_marginBottom="8dp"
+                    android:contentDescription="Expandir/Contraer información"
+                    android:scaleX="3.0"
                     android:src="@drawable/ic_arrow_up"
-                    app:tint="@color/md_theme_secondary" />
+                    app:tint="?attr/colorPrimary" />
 
                 <TextView
                     android:id="@+id/text_title"
+                    style="@style/TextAppearance.Material3.TitleLarge"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Información de los dispositivos"
-                    style="@style/TextAppearance.Material3.TitleLarge" />
+                    android:textAlignment="center"
+                    android:textColor="?attr/colorOnSurface" />
 
-                <!-- Contenido colapsable -->
                 <LinearLayout
                     android:id="@+id/expanded_content"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
                     android:orientation="vertical">
 
                     <com.google.android.material.divider.MaterialDivider
                         android:id="@+id/divider"
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
-                        android:layout_marginTop="8dp"
-                        android:layout_marginBottom="8dp"/>
+                        android:layout_marginBottom="8dp" />
 
-                    <TextView
-                        android:id="@+id/text_total_dispositivos"
+                    <GridLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/dispositivos_total" />
+                        android:alignmentMode="alignBounds"
+                        android:columnCount="2"
+                        android:rowCount="2"
+                        android:useDefaultMargins="true">
 
-                    <TextView
-                        android:id="@+id/text_dispositivos_activos"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/dispositivos_activos"
-                        android:paddingTop="8dp" />
+                        <TextView
+                            android:id="@+id/text_total_dispositivos"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_columnWeight="1"
+                            android:layout_margin="4dp"
+                            android:background="?attr/colorSurfaceVariant"
+                            android:padding="8dp"
+                            android:text="@string/dispositivos_total"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="14sp" />
 
-                    <TextView
-                        android:id="@+id/text_dispositivos_fuera_rango"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/dispositivos_fuera_rango"
-                        android:paddingTop="8dp" />
+                        <TextView
+                            android:id="@+id/text_dispositivos_activos"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_columnWeight="1"
+                            android:layout_margin="4dp"
+                            android:background="?attr/colorSurfaceVariant"
+                            android:padding="8dp"
+                            android:text="@string/dispositivos_activos"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="14sp" />
 
-                    <TextView
-                        android:id="@+id/text_estado_bluetooth"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/estado_bluetooth"
-                        android:paddingTop="8dp">
-                    </TextView>
+                        <TextView
+                            android:id="@+id/text_dispositivos_fuera_rango"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_columnWeight="1"
+                            android:layout_margin="4dp"
+                            android:background="?attr/colorSurfaceVariant"
+                            android:padding="8dp"
+                            android:text="@string/dispositivos_fuera_rango"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/text_estado_bluetooth"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_columnWeight="1"
+                            android:layout_margin="4dp"
+                            android:background="?attr/colorSurfaceVariant"
+                            android:padding="8dp"
+                            android:text="@string/estado_bluetooth"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="14sp" />
+                    </GridLayout>
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+</FrameLayout>

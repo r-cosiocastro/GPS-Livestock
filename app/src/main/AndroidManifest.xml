@@ -69,13 +69,6 @@
             android:configChanges="keyboardHidden|orientation|screenSize" />
 
         <activity
-            android:name=".ui.view.RegisterView"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.GpsLivestock"
-            android:configChanges="keyboardHidden|orientation|screenSize" />
-
-        <activity
             android:name=".ui.view.BluetoothDevicesView"
             android:exported="true" 
             android:theme="@style/Theme.GpsLivestock"

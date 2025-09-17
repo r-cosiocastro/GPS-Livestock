@@ -17,6 +17,11 @@ import androidx.activity.viewModels
 import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -75,8 +80,19 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
         binding = ActivityMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        setSupportActionBar(binding.topAppBar)
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.coordinatorLayout) { view, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            binding.bottomCardDeviceDetails.updatePadding(bottom = systemBars.bottom)
+            insets
+        }
 
         setupUserInfo()
 
@@ -87,30 +103,23 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
             startService(serviceIntent)
         }
 
-        binding.fabBluetooth.setOnClickListener {
-            startActivity(Intent(this, BluetoothDevicesView::class.java))
-        }
 
         val bottomSheet = binding.bottomCardDeviceDetails
         val behavior = BottomSheetBehavior.from(bottomSheet)
-        behavior.peekHeight = 220
+        behavior.peekHeight = 280
         behavior.state = BottomSheetBehavior.STATE_COLLAPSED
 
         val arrowIcon = findViewById<ImageView>(R.id.arrow_icon)
-        val offsetExpanded = 0f
-        val offsetCollapsed = -80f
 
         behavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
             override fun onStateChanged(bottomSheet: View, newState: Int) {
                 when (newState) {
                     BottomSheetBehavior.STATE_EXPANDED -> {
                         isExpanded = true
-                        binding.fabBluetooth.animate().translationY(offsetExpanded).setDuration(250).start()
                     }
                     BottomSheetBehavior.STATE_COLLAPSED,
                     BottomSheetBehavior.STATE_HALF_EXPANDED -> {
                         isExpanded = false
-                        binding.fabBluetooth.animate().translationY(offsetCollapsed).setDuration(250).start()
                     }
                     else -> { /* No action needed */ }
                 }
@@ -118,8 +127,6 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
 
             override fun onSlide(bottomSheet: View, slideOffset: Float) {
                 arrowIcon.rotation = 180 * slideOffset
-                val interpolatedOffset = offsetCollapsed * (1 - slideOffset)
-                binding.fabBluetooth.translationY = interpolatedOffset
             }
         })
 
@@ -165,7 +172,7 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
 
     private fun configurarObservadoresViewModel() {
         viewModel.isConnected.observe(this) { connected ->
-            binding.connectedIcon.setImageResource(if (connected) R.drawable.ic_bluetooth_connected_badge else R.drawable.ic_bluetooth_disconnected_badge)
+            //binding.connectedIcon.setImageResource(if (connected) R.drawable.ic_bluetooth_connected_badge else R.drawable.ic_bluetooth_disconnected_badge)
         }
 
         viewModel.connectionStatusText.observe(this) { status ->
@@ -173,7 +180,7 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
                 currentToast?.cancel()
                 currentToast = Toast.makeText(this, status, Toast.LENGTH_SHORT)
                 currentToast?.show()
-                binding.textEstadoBluetooth.text = status
+                binding.textEstadoBluetooth.text = getString(R.string.estado_bluetooth, status)
             }
         }
 
@@ -414,13 +421,15 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
                 binding.fabEditar.setIconResource(if (idPoligonoSeleccionado != null) R.drawable.ic_edit else R.drawable.ic_add)
                 binding.fabOpcionesEdicion.visibility = View.GONE
                 binding.fabEditar.visibility = View.VISIBLE
-                binding.topText.text = getString(R.string.selecciona_dispositivo_o_area)
+                binding.topAppBar.subtitle = getString(R.string.selecciona_dispositivo_o_area)
+                binding.topAppBar.title = "Mapa"
             }
             ModoEdicionPoligono.CREANDO -> {
                 actualizarMarcadoresDeVerticesVisual(viewModel.puntosPoligonoActualParaDibujar.value, modo)
                 binding.fabOpcionesEdicion.visibility = View.VISIBLE
                 binding.fabEditar.visibility = View.GONE
-                binding.topText.text = getString(R.string.creando_nueva_area)
+                binding.topAppBar.subtitle = getString(R.string.creando_nueva_area)
+                binding.topAppBar.title = "Creando Área"
                 desresaltarPoligonoExistenteSiHay()
                 binding.fabDeshacer.visibility = View.VISIBLE
             }
@@ -428,7 +437,8 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
                 actualizarMarcadoresDeVerticesVisual(viewModel.puntosPoligonoActualParaDibujar.value, modo)
                 binding.fabOpcionesEdicion.visibility = View.VISIBLE
                 binding.fabEditar.visibility = View.GONE
-                binding.topText.text = getString(R.string.editando_area_id, viewModel.poligonoSeleccionadoId.value?.toString() ?: "")
+                binding.topAppBar.subtitle = getString(R.string.editando_area)
+                binding.topAppBar.title = getString(R.string.editando_area_id, viewModel.poligonoSeleccionadoId.value?.toString() ?: "")
                 binding.fabDeshacer.visibility = View.GONE
             }
         }
@@ -514,15 +524,28 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.maps_menu, menu)
+        menuInflater.inflate(R.menu.top_app_bar_menu, menu)
         return true
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            R.id.action_logout -> { logoutUser(); true }
+            R.id.action_settings -> {
+                startActivity(Intent(this, BluetoothDevicesView::class.java))
+                true
+            }
             else -> super.onOptionsItemSelected(item)
         }
+    }
+
+    override fun onSupportNavigateUp(): Boolean {
+        AlertDialog.Builder(this)
+            .setTitle("Cerrar sesión")
+            .setMessage("¿Estás seguro de que deseas cerrar sesión?")
+            .setPositiveButton("Sí") { _, _ -> logoutUser() }
+            .setNegativeButton("No", null)
+            .show()
+        return super.onSupportNavigateUp()
     }
 
     private fun logoutUser() {

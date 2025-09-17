@@ -51,7 +51,8 @@
     <string name="fab_edit">Editar Área %1$s</string>
     <string name="fab_editing">Editar Área %1$s</string>
     <string name="fab_add">Agregar Área</string>
-    <string name="creando_nueva_area">Creando nueva área de pastoreo</string>
+    <string name="creando_nueva_area">Presiona el mapa para agregar</string>
+    <string name="editando_area">Mueve o presiona puntos para agregar</string>
     <string name="editando_area_id">Editando Área %1$s</string>
     <string name="bluetooth_service_conectado">Dispositivo bluetooth conectado</string>
     <string name="bluetooth_service_channel_name">Servicio Bluetooth</string>
@@ -59,7 +60,7 @@
     <string name="data_update_channel_name">Actualizaciones de los Dispositivos de Ubicación</string>
     <string name="data_update_channel_description">Notificaciones sobre nuevos datos de dispositivos</string>
     <string name="dialog_progress">Cargando</string>
-    <string name="estado_bluetooth">Estado del bluetooth: %1$s</string>
+    <string name="estado_bluetooth">Bluetooth: %1$s</string>
     <string name="device_bluetooth_connected_to">Conectado a: %1$s</string>
     <string name="device_bluetooth">Conectado</string>
     <string name="device_bluetooth_disconnected">Desconectado</string>

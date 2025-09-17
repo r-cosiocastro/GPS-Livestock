@@ -9,12 +9,14 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.rafaelcosio.gpslivestock.R
 import com.rafaelcosio.gpslivestock.data.model.FirebaseUserProfile
 import com.rafaelcosio.gpslivestock.databinding.ActivityLoginBinding
 import com.rafaelcosio.gpslivestock.data.model.UserType
 import com.rafaelcosio.gpslivestock.ui.viewmodel.AuthViewModel
 import com.rafaelcosio.gpslivestock.ui.viewmodel.AuthUiState
 import com.rafaelcosio.gpslivestock.utils.AppPreferences
+import com.rafaelcosio.gpslivestock.utils.LoadingDialog
 import com.rafaelcosio.gpslivestock.utils.toSpanish
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -24,6 +26,8 @@ class LoginView : AppCompatActivity() {
 
     private lateinit var binding: ActivityLoginBinding
     private val authViewModel: AuthViewModel by viewModels()
+
+    private lateinit var loadingDialog: LoadingDialog
 
     private var isRegisterMode = false
     private val selectableUserTypes: List<UserType> = UserType.entries.filter { it != UserType.ADMINISTRATOR }
@@ -35,9 +39,14 @@ class LoginView : AppCompatActivity() {
 
         setupSpinner()
         setupListeners()
+        setupDialogs()
         observeUiState()
         observeCurrentUser()
         updateUI()
+    }
+
+    private fun setupDialogs(){
+        loadingDialog = LoadingDialog(this@LoginView)
     }
 
     private fun setupSpinner() {
@@ -126,8 +135,8 @@ class LoginView : AppCompatActivity() {
         } else if (password.isEmpty()) {
             showError("La contraseña es requerida")
             isValid = false
-        } else if (password.length < 6) {
-            showError("La contraseña debe tener al menos 6 caracteres")
+        } else if (password.length < 8) {
+            showError("La contraseña debe tener al menos 8 caracteres")
             isValid = false
         } else if (confirmPassword.isEmpty()) {
             showError("Confirma tu contraseña")
@@ -156,7 +165,6 @@ class LoginView : AppCompatActivity() {
             authViewModel.currentUser.collect { user ->
                 if (user != null) {
                     saveUserSession(user)
-                    navigateToMainScreen()
                 }
             }
         }
@@ -166,6 +174,12 @@ class LoginView : AppCompatActivity() {
         binding.progressBar.visibility = if (state.isLoading) View.VISIBLE else View.GONE
         binding.btnPrimary.isEnabled = !state.isLoading
         binding.btnToggleMode.isEnabled = !state.isLoading
+
+        if (state.isLoading) {
+            loadingDialog.showLoadingDialog("Iniciando sesión", R.raw.cow)
+        } else {
+            loadingDialog.dismiss()
+        }
 
         if (state.errorMessage != null) {
             showError(state.errorMessage)

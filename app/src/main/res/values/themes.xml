@@ -56,6 +56,7 @@
 
         <!-- Animaciones para Activity y Fragment -->
         <item name="android:windowAnimationStyle">@style/ExpressiveWindowAnimation</item>
+
     </style>
 
     <style name="Theme.GpsLivestock.SplashScreen" parent="Theme.SplashScreen">

@@ -258,6 +258,8 @@ class AuthViewModel @Inject constructor(
                 "La contraseña debe tener al menos 6 caracteres"
             "A network error (such as timeout, interrupted connection or unreachable host) has occurred." ->
                 "Error de conexión. Verifica tu internet"
+            "The supplied auth credential is incorrect, malformed or has expired." ->
+                "Credenciales inválidas. Intenta de nuevo"
             else -> exception.message ?: "Error desconocido"
         }
     }

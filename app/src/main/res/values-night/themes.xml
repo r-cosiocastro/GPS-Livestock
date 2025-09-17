@@ -47,9 +47,19 @@
         <item name="colorSurfaceContainer">@color/md_theme_surfaceContainer</item>
         <item name="colorSurfaceContainerHigh">@color/md_theme_surfaceContainerHigh</item>
         <item name="colorSurfaceContainerHighest">@color/md_theme_surfaceContainerHighest</item>
+
+        <!-- Añadimos las nuevas formas y animaciones -->
+        <item name="shapeAppearanceSmallComponent">@style/ExpressiveShape.Small</item>
+        <item name="shapeAppearanceMediumComponent">@style/ExpressiveShape.Medium</item>
+        <item name="shapeAppearanceLargeComponent">@style/ExpressiveShape.Large</item>
+
+        <!-- Animaciones para Activity y Fragment -->
+        <item name="android:windowAnimationStyle">@style/ExpressiveWindowAnimation</item>
+
     </style>
 
     <style name="Theme.App.SplashScreen" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_round</item>
         <item name="windowSplashScreenBackground">@color/md_theme_background</item>
         <item name="windowSplashScreenAnimationDuration">1000</item>
         <item name="postSplashScreenTheme">@style/Theme.GpsLivestock</item>
