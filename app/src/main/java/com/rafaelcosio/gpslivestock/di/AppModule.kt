@@ -46,7 +46,6 @@ object AppModule {
     fun provideNotificationHelper(
         @ApplicationContext context: Context
     ): NotificationHelper {
-        // Asumiendo que NotificationHelper es un object o tiene un constructor sin args accesible
         return NotificationHelper
     }
 

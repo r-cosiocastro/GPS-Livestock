@@ -17,7 +17,6 @@ import androidx.activity.viewModels
 import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -44,6 +43,7 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
 import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.rafaelcosio.gpslivestock.location.LocationProviderSource
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -55,6 +55,8 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
 
     @Inject
     lateinit var bluetoothStateManager: BluetoothStateManager
+    @Inject
+    lateinit var locationSource: LocationProviderSource
 
     private lateinit var binding: ActivityMapsBinding
     private lateinit var googleMap: GoogleMap
@@ -68,6 +70,7 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
     private val poligonosExistentesVisual = mutableMapOf<Int, Polygon>()
     private var idPoligonoResaltadoVisualmente: Int? = null
     private lateinit var loadingDialog: LoadingDialog
+    private var currentUserType: UserType = UserType.REGULAR_USER
     private var currentToast: Toast? = null
     private val marcadoresVerticesActuales = mutableListOf<Marker>()
     var isExpanded = false
@@ -95,6 +98,7 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
         }
 
         setupUserInfo()
+        updateUi()
 
         loadingDialog = LoadingDialog(this@MapsView)
         loadingDialog.showLoadingDialog("Cargando mapa", R.raw.cow)
@@ -142,25 +146,53 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.userLocation.collect { location ->
-                    location?.let {
-                        Log.d("MapsActivity", "Ubicación del usuario observada en Activity: $it")
-                        if (viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO) return@collect
-                        centrarMapa()
+                launch {
+                    viewModel.userLocation.collect { location ->
+                        location?.let {
+                            Log.d(
+                                "MapsActivity",
+                                "Ubicación del usuario observada en Activity: $it"
+                            )
+                            if (viewModel.modoEdicionPoligono.value != ModoEdicionPoligono.NINGUNO) return@collect
+                            centrarMapa()
+                        }
+                    }
+                }
+                launch {
+                    viewModel.userType.collect { userType ->
+                        Log.d(
+                            "MapsActivity",
+                            "UserType observado en Activity: ${userType.toSpanish()}"
+                        )
+                        currentUserType = userType
+                        updateUi()
                     }
                 }
             }
+        }
+        Log.d("MapsActivity", "UserType: " + currentUserType.toSpanish())
+    }
+
+    private fun updateUi(){
+        if(currentUserType == UserType.REGULAR_USER){
+            binding.fabEditar.visibility = View.GONE
+            binding.bottomCardDeviceDetails.visibility = View.GONE
+        } else {
+            binding.fabEditar.visibility = View.VISIBLE
+            binding.bottomCardDeviceDetails.visibility = View.VISIBLE
         }
     }
 
     private fun setupUserInfo() {
         val userDisplayName = AppPreferences.getUserDisplayName(this) ?: "Usuario"
-        val userType = AppPreferences.getUserType(this)
+        //currentUserType = AppPreferences.getUserType(this)!!
+        // TEST
+        //currentUserType = UserType.REGULAR_USER
         val ranchName = AppPreferences.getUserRanchName(this)
 
         var userInfoText = "Bienvenido $userDisplayName"
 
-        userType?.let {
+        currentUserType.let {
             userInfoText += " (${it.toSpanish()}" // Usando la función de extensión importada
             if (it == UserType.RANCHER && !ranchName.isNullOrBlank()) {
                 userInfoText += " - Rancho: $ranchName"
@@ -313,7 +345,14 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
         this@MapsView.googleMap = map
         map.setOnMapLoadedCallback(this)
         map.setMapStyle(MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style))
-        map.isMyLocationEnabled = false
+        map.setLocationSource(locationSource)
+        map.isMyLocationEnabled = true
+        map.uiSettings.isMyLocationButtonEnabled = false
+        map.uiSettings.isZoomControlsEnabled = false
+        map.uiSettings.isCompassEnabled = false
+        map.uiSettings.isMapToolbarEnabled = false
+        map.uiSettings.isTiltGesturesEnabled = false
+
         map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(24.1426, -110.3128), 12f))
 
         map.setOnCameraMoveStartedListener { reason ->
@@ -420,8 +459,8 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
                 binding.fabEditar.text = if (idPoligonoSeleccionado != null) getString(R.string.fab_editing, idPoligonoSeleccionado.toString()) else getString(R.string.fab_add)
                 binding.fabEditar.setIconResource(if (idPoligonoSeleccionado != null) R.drawable.ic_edit else R.drawable.ic_add)
                 binding.fabOpcionesEdicion.visibility = View.GONE
-                binding.fabEditar.visibility = View.VISIBLE
-                binding.topAppBar.subtitle = getString(R.string.selecciona_dispositivo_o_area)
+                binding.fabEditar.visibility = if(currentUserType == UserType.REGULAR_USER) View.GONE else View.VISIBLE
+                binding.topAppBar.subtitle = if(currentUserType == UserType.REGULAR_USER) "" else getString(R.string.selecciona_dispositivo_o_area)
                 binding.topAppBar.title = "Mapa"
             }
             ModoEdicionPoligono.CREANDO -> {
@@ -446,6 +485,7 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
 
     private fun actualizarPoligonosEnMapa(listaPoligonosGuardados: List<Poligono>) {
         if (!::googleMap.isInitialized) return
+        if (currentUserType == UserType.REGULAR_USER) return
         poligonosExistentesVisual.values.forEach { it.remove() }
         poligonosExistentesVisual.clear()
         listaPoligonosGuardados.forEach { poligonoData ->
@@ -468,8 +508,19 @@ class MapsView : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLoadedC
         marcadoresDeDispositivosActuales.clear()
         viewModel.markerRastreadorMap.clear()
         listaDeRastreadores.forEach { dispositivo ->
-            val iconoMarcador = MarcadorIconHelper.obtenerIconoMarcador(this, dispositivo)
+            val iconoMarcador = if(currentUserType != UserType.REGULAR_USER)
+                MarcadorIconHelper.obtenerIconoMarcador(this, dispositivo)
+            else
+                MarcadorIconHelper.obtenerIconoMarcadorSimple(this, dispositivo)
             val markerOptions = MarkerOptions().position(LatLng(dispositivo.latitud, dispositivo.longitud)).title(dispositivo.nombre).snippet(dispositivo.descripcion ?: "").icon(iconoMarcador)
+
+            if(currentUserType == UserType.REGULAR_USER){
+                // Solo agregar marcador si el dispositivo está a menos de 500 metros del usuario
+                val distanciaAlUsuario = viewModel.calcularDistanciaAlUsuario(dispositivo)
+                if (distanciaAlUsuario == null || distanciaAlUsuario > 1000) {
+                    return@forEach
+                }
+            }
             googleMap.addMarker(markerOptions)?.also {
                 viewModel.markerRastreadorMap[it] = dispositivo
                 marcadoresDeDispositivosActuales.add(it)

@@ -61,17 +61,6 @@
                 app:layout_constraintTop_toTopOf="parent"
                 tools:text="Bienvenido Usuario Ganadero (Rancho: El Sol)" />
 
-            <com.google.android.material.banner.MaterialBanner
-                android:id="@+id/instructionBanner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:bannerBackgroundColor="?attr/colorSurfaceVariant"
-                app:primaryActionText="Entendido"
-                app:secondaryActionText="Más info"
-                app:layout_anchor="@id/app_bar_layout"
-                app:layout_anchorGravity="bottom" />
-
             <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
                 android:id="@+id/fabEditar"
                 android:layout_width="wrap_content"

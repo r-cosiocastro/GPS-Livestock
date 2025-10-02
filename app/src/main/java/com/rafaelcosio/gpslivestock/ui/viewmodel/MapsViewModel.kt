@@ -23,6 +23,8 @@ import com.rafaelcosio.gpslivestock.utils.StringFormatUtils.formatearDistancia
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.Marker
+import com.rafaelcosio.gpslivestock.data.model.UserType
+import com.rafaelcosio.gpslivestock.di.UserTypeProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +43,7 @@ class MapsViewModel @Inject constructor(
     private val rastreadorRepository: RastreadorRepository,
     private val poligonoRepository: PoligonoRepository,
     private val poligonoEditorManager: PoligonoEditorManager,
+    private val userTypeProvider: UserTypeProvider,
     private val locationProvider: ILocationProvider,
     private val verificarEstadoRastreadoresUseCase: VerificarEstadoRastreadoresUseCase,
     private val guardarPoligonoUseCase: com.rafaelcosio.gpslivestock.domain.usecase.polygon.GuardarPoligonoUseCase
@@ -78,6 +81,7 @@ class MapsViewModel @Inject constructor(
     val puntosPoligonoActualParaDibujar: StateFlow<List<LatLng>> = poligonoEditorManager.puntosPoligonoActual
     private val _poligonoSeleccionadoId = MutableStateFlow<Int?>(null)
     val poligonoSeleccionadoId: StateFlow<Int?> = _poligonoSeleccionadoId.asStateFlow()
+    val userType: StateFlow<UserType> = userTypeProvider.userType
 
     private val attemptingConnectionObserver = Observer<String> { deviceName ->
         Log.d("MapsViewModel", "StateManager - Attempting Connection to: $deviceName")
@@ -311,6 +315,17 @@ class MapsViewModel @Inject constructor(
         }
     }
 
+    fun calcularDistanciaAlUsuario(dispositivo: Rastreador): Float? {
+        val userLoc = userLocation.value ?: return null
+        val dispositivoLoc = Location("").apply {
+            latitude = dispositivo.latitud
+            longitude = dispositivo.longitud
+        }
+        val distancia = calcularDistancia(userLoc, dispositivoLoc)
+        distanciaTexto.value = formatearDistancia(distancia)
+        return distancia
+    }
+
     fun obtenerBoundsParaMapa(): LatLngBounds? {
         val listPuntos = mutableListOf<LatLng>()
 
@@ -318,13 +333,15 @@ class MapsViewModel @Inject constructor(
             listPuntos.add(LatLng(location.latitude, location.longitude))
         }
 
-        val dispositivosActuales = dispositivos.value
-        if (dispositivosActuales.isNotEmpty()) {
-            dispositivosActuales.forEach { d ->
-                listPuntos.add(LatLng(d.latitud, d.longitud))
+        if(userType.value != UserType.REGULAR_USER) {
+            val dispositivosActuales = dispositivos.value
+            if (dispositivosActuales.isNotEmpty()) {
+                dispositivosActuales.forEach { d ->
+                    listPuntos.add(LatLng(d.latitud, d.longitud))
+                }
+            } else {
+                return null
             }
-        } else{
-            return null
         }
 
         if (listPuntos.isEmpty()) return null

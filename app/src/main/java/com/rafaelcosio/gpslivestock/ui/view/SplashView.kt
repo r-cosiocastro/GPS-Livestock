@@ -11,17 +11,42 @@ import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat.finishAffinity
 import androidx.core.content.ContextCompat
+import androidx.core.content.ContextCompat.startActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.rafaelcosio.gpslivestock.data.model.UserType
+import com.rafaelcosio.gpslivestock.di.UserTypeProvider
 import com.rafaelcosio.gpslivestock.utils.AppPreferences // <-- Importar AppPreferences
+import com.rafaelcosio.gpslivestock.utils.toSpanish
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class SplashView : AppCompatActivity() {
+
+    @Inject
+    lateinit var userTypeProvider: UserTypeProvider
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        updateUserType()
         splashScreen.setKeepOnScreenCondition { true } // Mantener el splash hasta que la lógica decida
         checkPermissions()
+    }
+
+    private fun updateUserType() {
+        val userType = AppPreferences.getUserType(this)
+        if (userType != null) {
+            Log.d("SplashView", "User type found in preferences: ${userType.toSpanish()}")
+            userTypeProvider.updateUserType(userType)
+            // TODO: TEST
+            //userTypeProvider.updateUserType(UserType.REGULAR_USER)
+        } else {
+            Log.d("SplashView", "No user type found in preferences, defaulting to REGULAR_USER")
+            userTypeProvider.updateUserType(UserType.REGULAR_USER)
+        }
     }
 
     private val requiredPermissions: Array<String>

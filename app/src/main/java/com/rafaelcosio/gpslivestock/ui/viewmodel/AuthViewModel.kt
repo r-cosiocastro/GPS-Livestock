@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.room.util.copy
 import com.rafaelcosio.gpslivestock.data.model.FirebaseUserProfile
 import com.rafaelcosio.gpslivestock.data.model.UserType
+import com.rafaelcosio.gpslivestock.di.UserTypeProvider
 import com.rafaelcosio.gpslivestock.domain.usecase.AuthUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +17,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val authUseCase: AuthUseCase
+    private val authUseCase: AuthUseCase,
+    private val userTypeProvider: UserTypeProvider
 ) : ViewModel() {
 
     // Estados de UI
@@ -142,6 +144,7 @@ class AuthViewModel @Inject constructor(
                         isSignInSuccess = true
                     )
                     Log.d("AuthViewModel", "Inicio de sesión exitoso: " + userProfile.displayName)
+                    userTypeProvider.updateUserType(userProfile.userType)
                 },
                 onFailure = { exception ->
                     _uiState.value = _uiState.value.copy(
@@ -160,6 +163,7 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             authUseCase.signOut()
             _uiState.value = AuthUiState() // Reset UI state
+            userTypeProvider.clear()
         }
     }
 

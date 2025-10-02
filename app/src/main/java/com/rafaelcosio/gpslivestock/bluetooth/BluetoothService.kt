@@ -689,6 +689,7 @@ class BluetoothService : Service() {
                     Log.i("BluetoothService_GATT", "Conectado a GATT server $deviceNameForNotification ($deviceAddress).")
                     connectedGatt = gatt
                     currentDeviceAddress = deviceAddress
+                    gatt.requestMtu(185)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         if (ActivityCompat.checkSelfPermission(this@BluetoothService, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
                             try { currentDeviceName = gatt.device.name ?: deviceNameForNotification } catch (e: SecurityException) {/*log*/}
@@ -909,7 +910,7 @@ class BluetoothService : Service() {
             value: ByteArray
         ) {
             super.onCharacteristicChanged(gatt, characteristic, value)
-            Log.d("BluetoothService_DATA", "Datos recibidos de ${gatt.device.address} en ${characteristic.uuid}: ${value.toHexString()}")
+            //Log.d("BluetoothService_DATA", "Datos recibidos de ${gatt.device.address} en ${characteristic.uuid}: ${value.toHexString()}")
             handleCharacteristicChanged(gatt.device.address, characteristic.uuid.toString(), value)
         }
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -938,6 +939,7 @@ class BluetoothService : Service() {
         ) {
             val dataString =
                 String(value, Charsets.UTF_8).trim()
+            Log.i("BluetoothService_DATA", "Datos recibidos de $deviceAddress: '$dataString'")
             val parts =
                 dataString.split(',').map { it.trim() }
             if (parts.size == 3) {

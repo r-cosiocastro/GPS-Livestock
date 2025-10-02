@@ -94,6 +94,29 @@ object MarcadorIconHelper {
         )
     }
 
+    fun obtenerIconoMarcadorSimple(
+        context: Context,
+        rastreador: Rastreador,
+        escalaIconoPrincipal: Float = 0.8f,
+    ): BitmapDescriptor? {
+
+
+        val iconoBaseResId = when (rastreador.tipoAnimal) {
+            TIPO_ANIMAL_VACA -> R.drawable.cow
+            TIPO_ANIMAL_CABALLO -> R.drawable.horse
+            TIPO_ANIMAL_OVEJA -> R.drawable.sheep
+            TIPO_ANIMAL_CABRA -> R.drawable.goat
+            TIPO_ANIMAL_CERDO -> R.drawable.pig
+            else -> R.drawable.cow
+        }
+
+        return bitmapDescriptorFromVector(
+            context = context,
+            vectorResId = iconoBaseResId,
+            scale = escalaIconoPrincipal
+        )
+    }
+
 
 
     fun bitmapDescriptorFromVector(
