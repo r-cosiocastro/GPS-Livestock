@@ -9,7 +9,7 @@
     <string name="password_hint">Contraseña</string>
     <string name="confirm_password_hint">Confirmar contraseña</string>
     <string name="display_name_hint">Nombre para mostrar</string>
-    <string name="display_name_helper">Opcional - Se mostrará en la app</string>
+    <string name="display_name_helper">Opcional</string>
     <string name="user_type_label">Tipo de usuario</string>
     <string name="ranch_name_hint">Nombre del rancho</string>
     <string name="login_button">Iniciar Sesión</string>
