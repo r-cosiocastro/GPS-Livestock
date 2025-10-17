@@ -36,11 +36,17 @@ android {
         val mapsApiKey = getLocalProperty("MAPS_API_KEY")
             ?: throw GradleException("MAPS_API_KEY no se encuentra en local.properties")
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+
+        ndk {
+            //noinspection ChromeOsAbiSupport
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

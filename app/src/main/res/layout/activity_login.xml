@@ -5,7 +5,6 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true"
-    android:background="@drawable/login_background"
     tools:context=".ui.view.LoginView">
 
     <androidx.constraintlayout.widget.ConstraintLayout
